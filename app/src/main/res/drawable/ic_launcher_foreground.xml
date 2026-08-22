@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Trading Card Layer (Left tilted) -->
+    <path
+        android:pathData="M34,26 L56,29 C58.2,29.3 59.8,31.3 59.5,33.5 L53,74 C52.7,76.2 50.7,77.8 48.5,77.5 L26.5,74.5 C24.3,74.2 22.7,72.2 23,70 L29.5,29.5 C29.8,27.3 31.8,25.7 34,26 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="23"
+                android:startY="26"
+                android:endX="60"
+                android:endY="78"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#7C4DFF" />
+                <item android:offset="1.0" android:color="#536DFE" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Holographic Star inside card -->
+    <path
+        android:pathData="M41,40 L43,46 L49,46.5 L44.5,50.5 L46,56.5 L41,53 L36,56.5 L37.5,50.5 L33,46.5 L39,46 Z"
+        android:fillColor="#FFD54F" />
+
+    <!-- Diecast Car Layer (Right front) -->
+    <path
+        android:pathData="M52,58 L62,50 C64,48.5 67,48.5 70,50 L84,56 C86.5,57 88,59.5 88,62 L88,71 C88,72.5 86.8,73.7 85.3,73.7 L49,73.7 C47.5,73.7 46.3,72.5 46.3,71 L46.3,64 C46.3,61.2 48.8,59 52,58 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="46"
+                android:startY="48"
+                android:endX="88"
+                android:endY="74"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF5252" />
+                <item android:offset="1.0" android:color="#FF7A00" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    
+    <!-- Car windshield -->
+    <path
+        android:pathData="M62,52 L69,52 L77,57 L58,57 Z"
+        android:fillColor="#80E0FF" />
+
+    <!-- Wheels -->
+    <path
+        android:pathData="M53,74 A6,6 0 1,0 65,74 A6,6 0 1,0 53,74 Z"
+        android:fillColor="#212121" />
+    <path
+        android:pathData="M56,74 A3,3 0 1,0 62,74 A3,3 0 1,0 56,74 Z"
+        android:fillColor="#E0E0E0" />
+
+    <path
+        android:pathData="M73,74 A6,6 0 1,0 85,74 A6,6 0 1,0 73,74 Z"
+        android:fillColor="#212121" />
+    <path
+        android:pathData="M76,74 A3,3 0 1,0 82,74 A3,3 0 1,0 76,74 Z"
+        android:fillColor="#E0E0E0" />
+
+    <!-- Sparkle Diamond -->
+    <path
+        android:pathData="M78,28 L80.5,34 L86.5,36.5 L80.5,39 L78,45 L75.5,39 L69.5,36.5 L75.5,34 Z"
+        android:fillColor="#00E5FF" />
+</vector>

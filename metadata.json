@@ -1,0 +1,6 @@
+{
+  "name": "Colecionador",
+  "description": "Organize e gerencie suas coleções de cartas e carrinhos de forma simples e elegante, acompanhando valores, estatísticas e conquistas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
