@@ -24,6 +24,25 @@ object Routes {
     const val ADD_ITEM = "add_item"
     const val MARKETPLACE = "marketplace"
     const val ACHIEVEMENTS = "achievements"
+    const val WISHLIST = "wishlist"
+    const val SET_CHECKLIST = "set_checklist"
+    const val STORAGE_INVENTORY = "storage_inventory"
+    const val DUPLICATES = "duplicates"
+    const val AI_ASSISTANT = "ai_assistant"
+    const val PRICE_ALERTS = "price_alerts"
+    const val SECURITY_BACKUP = "security_backup"
+
+    // Dedicated Category & Stats Hubs
+    const val TCG_HUB = "tcg_hub"
+    const val POKEMON_TCG = "pokemon_tcg"
+    const val MAGIC_TCG = "magic_tcg"
+    const val YUGIOH_TCG = "yugioh_tcg"
+    const val DIECAST_HUB = "diecast_hub"
+    const val HOTWHEELS = "hotwheels"
+    const val ACTION_FIGURES = "action_figures"
+    const val COINS = "coins"
+    const val OTHER_COLLECTIBLES = "other_collectibles"
+    const val STATISTICS = "statistics"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,8 +55,9 @@ fun CollectorApp(viewModel: CollectorViewModel) {
     val showBottomBar = currentRoute in listOf(
         Routes.DASHBOARD,
         Routes.COLLECTION,
+        Routes.SCANNER,
         Routes.MARKETPLACE,
-        Routes.ACHIEVEMENTS
+        Routes.STATISTICS
     )
 
     Scaffold(
@@ -91,8 +111,8 @@ fun CollectorApp(viewModel: CollectorViewModel) {
                     )
 
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.SwapHoriz, contentDescription = "Trocas") },
-                        label = { Text("Trocas") },
+                        icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Mercado") },
+                        label = { Text("Mercado") },
                         selected = currentRoute == Routes.MARKETPLACE,
                         onClick = {
                             if (currentRoute != Routes.MARKETPLACE) {
@@ -107,19 +127,19 @@ fun CollectorApp(viewModel: CollectorViewModel) {
                     )
 
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.EmojiEvents, contentDescription = "Conquistas") },
-                        label = { Text("Conquistas") },
-                        selected = currentRoute == Routes.ACHIEVEMENTS,
+                        icon = { Icon(Icons.Default.BarChart, contentDescription = "Estatísticas") },
+                        label = { Text("Estatísticas") },
+                        selected = currentRoute == Routes.STATISTICS,
                         onClick = {
-                            if (currentRoute != Routes.ACHIEVEMENTS) {
-                                navController.navigate(Routes.ACHIEVEMENTS) {
+                            if (currentRoute != Routes.STATISTICS) {
+                                navController.navigate(Routes.STATISTICS) {
                                     popUpTo(Routes.DASHBOARD) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             }
                         },
-                        modifier = Modifier.testTag("nav_achievements")
+                        modifier = Modifier.testTag("nav_statistics")
                     )
                 }
             }
@@ -159,6 +179,59 @@ fun CollectorApp(viewModel: CollectorViewModel) {
             }
             composable(Routes.ACHIEVEMENTS) {
                 AchievementsScreen(viewModel)
+            }
+            composable(Routes.WISHLIST) {
+                WishlistScreen(viewModel, navController)
+            }
+            composable(Routes.SET_CHECKLIST) {
+                SetChecklistScreen(viewModel, navController)
+            }
+            composable(Routes.STORAGE_INVENTORY) {
+                StorageInventoryScreen(viewModel, navController)
+            }
+            composable(Routes.DUPLICATES) {
+                DuplicatesScreen(viewModel, navController)
+            }
+            composable(Routes.AI_ASSISTANT) {
+                AiAssistantScreen(viewModel, navController)
+            }
+            composable(Routes.PRICE_ALERTS) {
+                PriceAlertsScreen(viewModel, navController)
+            }
+            composable(Routes.SECURITY_BACKUP) {
+                SecurityBackupScreen(viewModel, navController)
+            }
+
+            // Category Specific Pages
+            composable(Routes.TCG_HUB) {
+                TcgHubScreen(viewModel, navController)
+            }
+            composable(Routes.POKEMON_TCG) {
+                PokemonTcgScreen(viewModel, navController)
+            }
+            composable(Routes.MAGIC_TCG) {
+                MagicTcgScreen(viewModel, navController)
+            }
+            composable(Routes.YUGIOH_TCG) {
+                YugiohTcgScreen(viewModel, navController)
+            }
+            composable(Routes.DIECAST_HUB) {
+                DiecastHubScreen(viewModel, navController)
+            }
+            composable(Routes.HOTWHEELS) {
+                HotWheelsScreen(viewModel, navController)
+            }
+            composable(Routes.ACTION_FIGURES) {
+                ActionFiguresScreen(viewModel, navController)
+            }
+            composable(Routes.COINS) {
+                CoinsScreen(viewModel, navController)
+            }
+            composable(Routes.OTHER_COLLECTIBLES) {
+                OtherCollectiblesScreen(viewModel, navController)
+            }
+            composable(Routes.STATISTICS) {
+                StatisticsScreen(viewModel, navController)
             }
         }
     }

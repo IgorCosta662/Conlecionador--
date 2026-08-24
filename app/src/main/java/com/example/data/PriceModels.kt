@@ -14,7 +14,8 @@ enum class AppCurrency(
     BRL("BRL", "R$", "Real Brasileiro", 1.0),
     USD("USD", "$", "Dólar Americano", 5.45),
     EUR("EUR", "€", "Euro", 5.95),
-    GBP("GBP", "£", "Libra Esterlina", 6.95);
+    GBP("GBP", "£", "Libra Esterlina", 6.95),
+    JPY("JPY", "¥", "Iene Japonês", 0.036);
 
     fun convertFromBRL(amountInBrl: Double): Double {
         return amountInBrl / approximateRateToBRL
@@ -26,13 +27,119 @@ enum class AppCurrency(
 
     fun format(amountInBrl: Double): String {
         val converted = convertFromBRL(amountInBrl)
-        return "$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", converted)}"
+        return if (this == JPY) {
+            "$symbol ${String.format(java.util.Locale.GERMANY, "%,.0f", converted)}"
+        } else {
+            "$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", converted)}"
+        }
     }
+
+    fun formatValue(amountInBrl: Double): String = format(amountInBrl)
 
     fun formatExact(amount: Double): String {
         return "$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", amount)}"
     }
 }
+
+// ----------------------------------------------------
+// Market Region (Brasil, EUA, Japão, Europa)
+// ----------------------------------------------------
+enum class MarketRegion(
+    val code: String,
+    val displayName: String,
+    val flag: String,
+    val primarySource: String
+) {
+    BRAZIL("BR", "Brasil", "BR", "LigaPokémon / Mercado Livre"),
+    USA("US", "Estados Unidos", "US", "TCGPlayer / eBay US"),
+    JAPAN("JP", "Japão", "JP", "Mercari JP / Yuyu-tei"),
+    EUROPE("EU", "Europa", "EU", "Cardmarket EU");
+
+    companion object {
+        fun fromCode(code: String): MarketRegion =
+            entries.firstOrNull { it.code.equals(code, ignoreCase = true) } ?: BRAZIL
+    }
+}
+
+// ----------------------------------------------------
+// Language Support
+// ----------------------------------------------------
+data class SupportedLanguage(
+    val code: String,
+    val namePt: String,
+    val flag: String
+)
+
+object LanguageRegistry {
+    val languages = listOf(
+        SupportedLanguage("PT-BR", "Português", "PT-BR"),
+        SupportedLanguage("EN", "Inglês", "EN"),
+        SupportedLanguage("JP", "Japonês", "JP"),
+        SupportedLanguage("ZH", "Chinês", "ZH"),
+        SupportedLanguage("KO", "Coreano", "KO"),
+        SupportedLanguage("FR", "Francês", "FR"),
+        SupportedLanguage("DE", "Alemão", "DE"),
+        SupportedLanguage("ES", "Espanhol", "ES"),
+        SupportedLanguage("IT", "Italiano", "IT"),
+        SupportedLanguage("N/A", "Universal / Diecast", "INT")
+    )
+
+    fun getFlag(code: String): String {
+        val clean = code.trim().uppercase()
+        return languages.firstOrNull {
+            it.code.equals(clean, ignoreCase = true) ||
+            clean.contains(it.code) ||
+            it.namePt.equals(clean, ignoreCase = true)
+        }?.flag ?: "INT"
+    }
+
+    fun getDisplayName(code: String): String {
+        val clean = code.trim().uppercase()
+        val found = languages.firstOrNull {
+            it.code.equals(clean, ignoreCase = true) ||
+            clean.contains(it.code) ||
+            it.namePt.equals(clean, ignoreCase = true)
+        }
+        return if (found != null) "[${found.code}] ${found.namePt}" else code
+    }
+}
+
+// ----------------------------------------------------
+// Price Comparison across Languages
+// ----------------------------------------------------
+@JsonClass(generateAdapter = true)
+data class LanguagePriceComparison(
+    val languageCode: String,
+    val languageName: String,
+    val flag: String,
+    val averagePriceBrl: Double,
+    val minPriceBrl: Double,
+    val maxPriceBrl: Double
+)
+
+// ----------------------------------------------------
+// Condition Assessment Breakdown
+// ----------------------------------------------------
+@JsonClass(generateAdapter = true)
+data class ConditionAssessment(
+    val estimatedCondition: String = "Near Mint",
+    val confidencePercent: Int = 85,
+    val scratches: String = "Sem arranhões aparentes",
+    val edges: String = "Bordas regulares e preservadas",
+    val corners: String = "Cantos firmes sem desgaste visível",
+    val centering: String = "Boa centralização estimada (aprox. 55/45)",
+    val bends: String = "Superfície perfeitamente plana",
+    val notes: String = "Condição estimada por IA com base na análise visual da imagem."
+)
+
+// ----------------------------------------------------
+// Price Matrix by Condition
+// ----------------------------------------------------
+@JsonClass(generateAdapter = true)
+data class ConditionPriceTier(
+    val condition: String,
+    val priceBrl: Double
+)
 
 @JsonClass(generateAdapter = true)
 data class PriceOffer(
@@ -60,41 +167,33 @@ object JsonParserHelper {
 
     private val priceOffersListType = Types.newParameterizedType(List::class.java, PriceOffer::class.java)
     private val priceHistoryListType = Types.newParameterizedType(List::class.java, PriceHistoryPoint::class.java)
+    private val langComparisonListType = Types.newParameterizedType(List::class.java, LanguagePriceComparison::class.java)
+    private val conditionTiersListType = Types.newParameterizedType(List::class.java, ConditionPriceTier::class.java)
+    private val stringListType = Types.newParameterizedType(List::class.java, String::class.java)
 
     private val priceOffersAdapter = moshi.adapter<List<PriceOffer>>(priceOffersListType)
     private val priceHistoryAdapter = moshi.adapter<List<PriceHistoryPoint>>(priceHistoryListType)
+    private val langComparisonAdapter = moshi.adapter<List<LanguagePriceComparison>>(langComparisonListType)
+    private val conditionTiersAdapter = moshi.adapter<List<ConditionPriceTier>>(conditionTiersListType)
+    private val conditionAssessmentAdapter = moshi.adapter(ConditionAssessment::class.java)
+    private val stringListAdapter = moshi.adapter<List<String>>(stringListType)
 
-    fun offersToJson(offers: List<PriceOffer>): String {
-        return try {
-            priceOffersAdapter.toJson(offers)
-        } catch (e: Exception) {
-            "[]"
-        }
-    }
+    fun offersToJson(offers: List<PriceOffer>): String = try { priceOffersAdapter.toJson(offers) } catch (e: Exception) { "[]" }
+    fun offersFromJson(json: String?): List<PriceOffer> = if (json.isNullOrBlank()) emptyList() else try { priceOffersAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }
 
-    fun offersFromJson(json: String?): List<PriceOffer> {
-        if (json.isNullOrBlank()) return emptyList()
-        return try {
-            priceOffersAdapter.fromJson(json) ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
+    fun historyToJson(history: List<PriceHistoryPoint>): String = try { priceHistoryAdapter.toJson(history) } catch (e: Exception) { "[]" }
+    fun historyFromJson(json: String?): List<PriceHistoryPoint> = if (json.isNullOrBlank()) emptyList() else try { priceHistoryAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }
 
-    fun historyToJson(history: List<PriceHistoryPoint>): String {
-        return try {
-            priceHistoryAdapter.toJson(history)
-        } catch (e: Exception) {
-            "[]"
-        }
-    }
+    fun langComparisonToJson(list: List<LanguagePriceComparison>): String = try { langComparisonAdapter.toJson(list) } catch (e: Exception) { "[]" }
+    fun langComparisonFromJson(json: String?): List<LanguagePriceComparison> = if (json.isNullOrBlank()) emptyList() else try { langComparisonAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }
 
-    fun historyFromJson(json: String?): List<PriceHistoryPoint> {
-        if (json.isNullOrBlank()) return emptyList()
-        return try {
-            priceHistoryAdapter.fromJson(json) ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
+    fun conditionTiersToJson(tiers: List<ConditionPriceTier>): String = try { conditionTiersAdapter.toJson(tiers) } catch (e: Exception) { "[]" }
+    fun conditionTiersFromJson(json: String?): List<ConditionPriceTier> = if (json.isNullOrBlank()) emptyList() else try { conditionTiersAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }
+
+    fun conditionAssessmentToJson(assessment: ConditionAssessment): String = try { conditionAssessmentAdapter.toJson(assessment) } catch (e: Exception) { "{}" }
+    fun conditionAssessmentFromJson(json: String?): ConditionAssessment = if (json.isNullOrBlank() || json == "{}") ConditionAssessment() else try { conditionAssessmentAdapter.fromJson(json) ?: ConditionAssessment() } catch (e: Exception) { ConditionAssessment() }
+
+    fun stringListToJson(list: List<String>): String = try { stringListAdapter.toJson(list) } catch (e: Exception) { "[]" }
+    fun stringListFromJson(json: String?): List<String> = if (json.isNullOrBlank()) emptyList() else try { stringListAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }
 }
+

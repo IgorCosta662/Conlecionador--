@@ -15,7 +15,7 @@ data class Item(
     val variant: String = "Normal", // "Normal", "Foil / Holográfico", "Reverse Holo", "Alternate Art", "Promo", "Redline", "Edição Limitada", "Primeira Edição"
     val condition: String = "Near Mint", // "Novo / Lacrado", "Graded (Graduada)", "Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"
     val gradingInfo: String = "", // e.g. "PSA 10 Gem Mint", "BGS 9.5", "CGC 9"
-    val language: String = "PT-BR", // "PT-BR", "EN", "JP", "ES", "N/A"
+    val language: String = "PT-BR", // "PT-BR", "EN", "JP", "ZH", "KO", "FR", "DE", "ES", "IT", "N/A"
     val scale: String = "", // e.g. "1:64", "1:18", "1:12", "N/A"
     val color: String = "", // e.g. "Azul Metálico", "Vermelho Spectraflame", "Dourado"
     val year: String = "", // e.g. "2024", "1999"
@@ -25,20 +25,37 @@ data class Item(
     val minPrice: Double = 0.0, // Menor preço de mercado encontrado
     val maxPrice: Double = 0.0, // Maior preço de mercado encontrado
     val confidenceScore: Int = 90, // Confiança da IA (0 a 100%)
-    val imageUri: String? = null,
+    val imageUri: String? = null, // Foto frontal principal
+    val backImageUri: String? = null, // Foto do verso / traseira
+    val detailImagesJson: String = "[]", // Fotos adicionais (detalhe, defeito, embalagem, close)
     val isFavorite: Boolean = false,
     val tags: String = "",
     val storageLocation: String = "", // Local onde está guardado (ex: "Pasta Charizard - Pág 2", "Estante A", "Gaveta 1")
     val notes: String = "", // Observações do colecionador
     val priceOffersJson: String = "[]", // Lista de ofertas serializadas em JSON
     val priceHistoryJson: String = "[]", // Histórico de preços serializado em JSON
+    val languageComparisonJson: String = "[]", // Comparativo de preços por idioma
+    val conditionPricesJson: String = "[]", // Matriz de preços por condição (Mint, NM, Exc, Good, Played)
+    val conditionAssessmentJson: String = "{}", // Checklist e detalhes da avaliação de estado
+    val authenticityStatus: String = "Baixo risco aparente", // "Baixo risco aparente", "Necessita analise", "Possiveis sinais"
+    val authenticityNotes: String = "", // Justificativa visual da IA
+    val targetPriceAlert: Double = 0.0, // Alerta quando ultrapassar este valor
+    val isAlertEnabled: Boolean = false,
+    val marketRegion: String = "BR", // BR, US, JP, EU
+    val cardHp: String = "", // Ex: "HP 330"
+    val cardArtist: String = "", // Ex: "Mitsuhiro Arita"
+    val cardAttacks: String = "", // Ex: "Brave Wing, Explosive Vortex"
+    val cardSetSymbol: String = "",
     val currency: String = "BRL",
     val lastPriceUpdate: Long = System.currentTimeMillis(),
     val dateAdded: Long = System.currentTimeMillis()
 ) {
     fun getOffersList(): List<PriceOffer> = JsonParserHelper.offersFromJson(priceOffersJson)
-    
     fun getHistoryList(): List<PriceHistoryPoint> = JsonParserHelper.historyFromJson(priceHistoryJson)
+    fun getLanguageComparisonList(): List<LanguagePriceComparison> = JsonParserHelper.langComparisonFromJson(languageComparisonJson)
+    fun getConditionPriceTiers(): List<ConditionPriceTier> = JsonParserHelper.conditionTiersFromJson(conditionPricesJson)
+    fun getConditionAssessment(): ConditionAssessment = JsonParserHelper.conditionAssessmentFromJson(conditionAssessmentJson)
+    fun getDetailImages(): List<String> = JsonParserHelper.stringListFromJson(detailImagesJson)
 
     val totalEstimatedValue: Double get() = estimatedValue * quantity
     val totalPurchasePrice: Double get() = purchasePrice * quantity
@@ -51,6 +68,9 @@ data class Item(
         } else {
             0.0
         }
+
+    val languageFlag: String get() = LanguageRegistry.getFlag(language)
+    val languageDisplayName: String get() = LanguageRegistry.getDisplayName(language)
 
     val isCard: Boolean
         get() = type.contains("Card", ignoreCase = true) ||
@@ -69,3 +89,4 @@ data class Item(
                 subCategory.contains("Majorette", ignoreCase = true) ||
                 subCategory.contains("Maisto", ignoreCase = true)
 }
+

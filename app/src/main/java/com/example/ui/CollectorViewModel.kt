@@ -37,6 +37,15 @@ data class MarketOffer(
     val isUserPost: Boolean = false
 )
 
+// Batch Scan Queue Item
+data class BatchScanItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val identification: ItemIdentificationResult,
+    val imageBase64: String? = null,
+    val savedImageUri: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 sealed interface AppraisalState {
     object Idle : AppraisalState
     object Loading : AppraisalState
@@ -56,9 +65,16 @@ sealed interface ScanUiState {
     object Loading : ScanUiState
     data class Success(
         val result: ItemIdentificationResult,
-        val capturedImageBase64: String? = null
+        val capturedImageBase64: String? = null,
+        val savedImageUri: String? = null
     ) : ScanUiState
     data class Error(val message: String) : ScanUiState
+}
+
+enum class ViewMode(val title: String) {
+    GRID("Grade"),
+    LIST("Lista"),
+    COMPACT("Compacto")
 }
 
 enum class SortOption(val title: String) {
@@ -68,6 +84,15 @@ enum class SortOption(val title: String) {
     PROFIT("Maior Valorização (%)"),
     NAME("Nome (A-Z)")
 }
+
+data class AppNotification(
+    val id: String,
+    val title: String,
+    val message: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val iconType: String = "info",
+    val isRead: Boolean = false
+)
 
 class CollectorViewModel(
     application: Application,
@@ -81,18 +106,69 @@ class CollectorViewModel(
         selectedCurrency.value = currency
     }
 
+    // --- App Mode: Modo Colecionador vs Modo Investidor ---
+    val appMode = MutableStateFlow(AppMode.COLLECTOR)
+
+    fun setAppMode(mode: AppMode) {
+        appMode.value = mode
+    }
+
+    fun toggleAppMode() {
+        appMode.value = if (appMode.value == AppMode.COLLECTOR) AppMode.INVESTOR else AppMode.COLLECTOR
+    }
+
+    // --- View Mode Preference (Grade / Lista / Compacto) ---
+    val viewMode = MutableStateFlow(ViewMode.GRID)
+
+    fun setViewMode(mode: ViewMode) {
+        viewMode.value = mode
+    }
+
+    // --- Dialog Triggers ---
+    val showGlobalSearchDialog = MutableStateFlow(false)
+    val showNotificationsDialog = MutableStateFlow(false)
+    val showSettingsDialog = MutableStateFlow(false)
+
+    // --- Notifications List ---
+    val notifications = MutableStateFlow<List<AppNotification>>(
+        listOf(
+            AppNotification("notif_1", "Charizard ex em Alta!", "A cotação de Charizard ex 151 subiu +15% no mercado nacional esta semana.", System.currentTimeMillis() - 3600000, "trending_up"),
+            AppNotification("notif_2", "Alerta de Preço Atingido", "Nissan Skyline GT-R STH atingiu sua meta de R$ 320,00.", System.currentTimeMillis() - 7200000, "notifications_active"),
+            AppNotification("notif_3", "Dica de Colecionador", "Novas listas de cartas Pokémon 151 foram catalogadas.", System.currentTimeMillis() - 86400000, "lightbulb")
+        )
+    )
+
+    // --- Market Region (Brasil, EUA, Japão, Europa) ---
+    val selectedMarketRegion = MutableStateFlow(MarketRegion.BRAZIL)
+
+    fun setMarketRegion(market: MarketRegion) {
+        selectedMarketRegion.value = market
+    }
+
     // --- Filter & Search States ---
     val searchQuery = MutableStateFlow("")
-    val selectedCategoryFilter = MutableStateFlow("TODOS") // "TODOS", "Trading Cards", "Carrinhos / Diecast", "Action Figures", "Moedas", "Outros"
-    val selectedSubCategoryFilter = MutableStateFlow("TODOS") // e.g. "Pokémon TCG", "Hot Wheels"
+    val selectedCategoryFilter = MutableStateFlow("TODOS")
+    val selectedSubCategoryFilter = MutableStateFlow("TODOS")
     val selectedRarityFilter = MutableStateFlow("TODOS")
     val selectedConditionFilter = MutableStateFlow("TODOS")
+    val selectedLanguageFilter = MutableStateFlow("TODOS")
     val onlyFavoritesFilter = MutableStateFlow(false)
     val sortOption = MutableStateFlow(SortOption.RECENT)
+
+    init {
+        // Start with clean, empty collection as requested
+        viewModelScope.launch {
+            repository.deleteAllItems()
+        }
+    }
 
     // --- Selected item for Details / Editing ---
     val selectedItem = MutableStateFlow<Item?>(null)
     val isEditingItem = MutableStateFlow<Item?>(null)
+
+    fun selectItem(item: Item) {
+        selectedItem.value = item
+    }
 
     // --- Multi-select for Item Comparison ---
     val comparisonSelectionMode = MutableStateFlow(false)
@@ -114,6 +190,38 @@ class CollectorViewModel(
         comparisonSelectionMode.value = false
     }
 
+    // --- Batch Scanner & Inventory Fast Mode ---
+    val batchScanQueue = MutableStateFlow<List<BatchScanItem>>(emptyList())
+
+    fun addToBatchQueue(item: BatchScanItem) {
+        batchScanQueue.update { it + item }
+    }
+
+    fun removeFromBatchQueue(id: String) {
+        batchScanQueue.update { current -> current.filterNot { it.id == id } }
+    }
+
+    fun clearBatchQueue() {
+        batchScanQueue.value = emptyList()
+    }
+
+    fun addAllBatchItemsToCollection() {
+        viewModelScope.launch {
+            val batch = batchScanQueue.value
+            batch.forEach { item ->
+                saveIdentifiedItemToCollection(
+                    identification = item.identification,
+                    quantity = 1,
+                    purchasePrice = 0.0,
+                    storageLocation = "Lote Escaneado",
+                    notes = "Adicionado via scanner em lote",
+                    imageUri = item.savedImageUri
+                )
+            }
+            clearBatchQueue()
+        }
+    }
+
     // --- Raw items from database ---
     private val _allItems = repository.allItems
 
@@ -123,7 +231,18 @@ class CollectorViewModel(
         emptyList()
     )
 
-    // --- Filtered and Sorted Items ---
+    // Check duplicate item in collection
+    fun findDuplicateItem(name: String, subCategory: String, language: String, itemNumber: String): Item? {
+        val cleanName = name.trim().lowercase()
+        val cleanNumber = itemNumber.trim().lowercase()
+        return allItems.value.firstOrNull { existing ->
+            existing.name.lowercase().contains(cleanName) || cleanName.contains(existing.name.lowercase()) &&
+            (cleanNumber.isNotBlank() && existing.itemNumber.lowercase() == cleanNumber ||
+             existing.subCategory.equals(subCategory, ignoreCase = true) && existing.language.equals(language, ignoreCase = true))
+        }
+    }
+
+    // --- Filtered and Sorted Items (Intelligent Natural Search Engine) ---
     val filteredItems: StateFlow<List<Item>> = combine(
         _allItems,
         searchQuery,
@@ -131,26 +250,55 @@ class CollectorViewModel(
         selectedSubCategoryFilter,
         selectedRarityFilter,
         selectedConditionFilter,
+        selectedLanguageFilter,
         onlyFavoritesFilter,
         sortOption
     ) { args: Array<Any> ->
         @Suppress("UNCHECKED_CAST")
         val items = args[0] as List<Item>
-        val query = args[1] as String
+        val rawQuery = (args[1] as String).trim()
+        val query = rawQuery.lowercase()
         val category = args[2] as String
         val subCategory = args[3] as String
         val rarity = args[4] as String
         val condition = args[5] as String
-        val favoritesOnly = args[6] as Boolean
-        val sort = args[7] as SortOption
+        val language = args[6] as String
+        val favoritesOnly = args[7] as Boolean
+        val sort = args[8] as SortOption
+
+        // Intelligent Natural Search keywords
+        val isJapaneseQuery = query.contains("japones") || query.contains("japonesa") || query.contains("japão") || query.contains("jp")
+        val isPortugueseQuery = query.contains("portugues") || query.contains("português") || query.contains("pt") || query.contains("brasil")
+        val isEnglishQuery = query.contains("ingles") || query.contains("inglês") || query.contains("en") || query.contains("usa")
+        val isSthQuery = query.contains("sth") || query.contains("super treasure") || query.contains("super th")
+        val isProfitQuery = query.contains("valorizou") || query.contains("valorizaram") || query.contains("lucro") || query.contains("positivo")
+        val isHighValueQuery = query.contains("acima de") || query.contains("mais de") || query.contains(">")
+
+        var valueThreshold: Double? = null
+        if (isHighValueQuery) {
+            val digits = query.replace("[^0-9]".toRegex(), "").toDoubleOrNull()
+            if (digits != null) valueThreshold = digits
+        }
 
         val filtered = items.filter { item ->
-            val matchesQuery = query.isBlank() ||
-                    item.name.contains(query, ignoreCase = true) ||
-                    item.collection.contains(query, ignoreCase = true) ||
-                    item.subCategory.contains(query, ignoreCase = true) ||
-                    item.tags.contains(query, ignoreCase = true) ||
-                    item.itemNumber.contains(query, ignoreCase = true)
+            // Smart query matching
+            val matchesQuery = when {
+                query.isBlank() -> true
+                valueThreshold != null -> item.estimatedValue >= valueThreshold
+                isProfitQuery -> item.profitOrLoss > 0
+                isSthQuery -> item.variant.contains("Treasure", ignoreCase = true) || item.rarity.contains("Treasure", ignoreCase = true)
+                isJapaneseQuery && item.language.contains("JP", ignoreCase = true) -> true
+                isPortugueseQuery && item.language.contains("PT", ignoreCase = true) -> true
+                isEnglishQuery && item.language.contains("EN", ignoreCase = true) -> true
+                else -> item.name.contains(query, ignoreCase = true) ||
+                        item.collection.contains(query, ignoreCase = true) ||
+                        item.subCategory.contains(query, ignoreCase = true) ||
+                        item.tags.contains(query, ignoreCase = true) ||
+                        item.itemNumber.contains(query, ignoreCase = true) ||
+                        item.cardArtist.contains(query, ignoreCase = true) ||
+                        item.notes.contains(query, ignoreCase = true) ||
+                        item.storageLocation.contains(query, ignoreCase = true)
+            }
 
             val matchesCategory = category == "TODOS" || item.type == category ||
                     (category == "Trading Cards" && item.isCard) ||
@@ -159,9 +307,10 @@ class CollectorViewModel(
             val matchesSubCategory = subCategory == "TODOS" || item.subCategory.equals(subCategory, ignoreCase = true)
             val matchesRarity = rarity == "TODOS" || item.rarity.equals(rarity, ignoreCase = true)
             val matchesCondition = condition == "TODOS" || item.condition.contains(condition, ignoreCase = true)
+            val matchesLanguage = language == "TODOS" || item.language.equals(language, ignoreCase = true)
             val matchesFavorites = !favoritesOnly || item.isFavorite
 
-            matchesQuery && matchesCategory && matchesSubCategory && matchesRarity && matchesCondition && matchesFavorites
+            matchesQuery && matchesCategory && matchesSubCategory && matchesRarity && matchesCondition && matchesLanguage && matchesFavorites
         }
 
         when (sort) {
@@ -183,13 +332,15 @@ class CollectorViewModel(
     fun startImageScan(bitmap: Bitmap, contextHint: String? = null) {
         viewModelScope.launch {
             _scanUiState.value = ScanUiState.Loading
+            val savedUri = ImageStorageHelper.saveBitmapToInternalStorage(getApplication(), bitmap, "front")
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
             val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
-            
-            val result = GeminiClient.identifyAndPriceItemFromImage(base64, "image/jpeg", contextHint)
+
+            val market = selectedMarketRegion.value
+            val result = GeminiClient.identifyAndPriceItemFromImage(base64, "image/jpeg", contextHint, market)
             identificationCorrectionBuffer.value = result
-            _scanUiState.value = ScanUiState.Success(result, base64)
+            _scanUiState.value = ScanUiState.Success(result, base64, savedUri)
         }
     }
 
@@ -197,9 +348,10 @@ class CollectorViewModel(
         viewModelScope.launch {
             _scanUiState.value = ScanUiState.Loading
             val hint = if (type == "CARRINHO") "Hot Wheels Datsun 510 Wagon Super Treasure Hunt" else "Pokémon Charizard ex 151"
-            val result = GeminiClient.generateSimulatedResultForFallback(hint)
+            val market = selectedMarketRegion.value
+            val result = GeminiClient.generateSimulatedResultForFallback(hint, market)
             identificationCorrectionBuffer.value = result
-            _scanUiState.value = ScanUiState.Success(result, null)
+            _scanUiState.value = ScanUiState.Success(result, null, null)
         }
     }
 
@@ -216,6 +368,18 @@ class CollectorViewModel(
         identificationCorrectionBuffer.value = null
     }
 
+    fun saveBitmapToStorage(bitmap: Bitmap, prefix: String = "img"): String? {
+        return ImageStorageHelper.saveBitmapToInternalStorage(getApplication(), bitmap, prefix)
+    }
+
+    fun findPossibleDuplicate(result: ItemIdentificationResult): Item? {
+        return allItems.value.firstOrNull { existing ->
+            existing.name.equals(result.name, ignoreCase = true) &&
+            (result.itemNumber.isBlank() || existing.itemNumber.equals(result.itemNumber, ignoreCase = true)) &&
+            existing.language.equals(result.language, ignoreCase = true)
+        }
+    }
+
     // Save identified item to collection
     fun saveIdentifiedItemToCollection(
         identification: ItemIdentificationResult,
@@ -223,11 +387,18 @@ class CollectorViewModel(
         purchasePrice: Double = 0.0,
         storageLocation: String = "",
         notes: String = "",
-        imageUri: String? = null
+        imageUri: String? = null,
+        backImageUri: String? = null,
+        detailImages: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             val offersJson = JsonParserHelper.offersToJson(identification.offers)
             val historyJson = JsonParserHelper.historyToJson(identification.priceHistory)
+            val langComparisonJson = JsonParserHelper.langComparisonToJson(identification.languageComparisons)
+            val conditionPricesJson = JsonParserHelper.conditionTiersToJson(identification.conditionPrices)
+            val conditionAssessmentJson = JsonParserHelper.conditionAssessmentToJson(identification.conditionAssessment)
+
+            val resolvedImageUri = imageUri ?: (_scanUiState.value as? ScanUiState.Success)?.savedImageUri
 
             val newItem = Item(
                 name = identification.name,
@@ -243,23 +414,69 @@ class CollectorViewModel(
                 scale = identification.scale,
                 color = identification.modelColor,
                 year = identification.modelYear,
+                cardHp = identification.cardHp,
+                cardArtist = identification.cardArtist,
+                cardAttacks = identification.cardAttacks,
+                cardSetSymbol = identification.cardSetSymbol,
                 quantity = quantity,
                 purchasePrice = purchasePrice,
                 estimatedValue = identification.averagePrice,
                 minPrice = identification.minPrice,
                 maxPrice = identification.maxPrice,
                 confidenceScore = identification.confidenceScore,
-                imageUri = imageUri,
+                imageUri = resolvedImageUri,
+                backImageUri = backImageUri,
+                detailImagesJson = JsonParserHelper.stringListToJson(detailImages),
                 storageLocation = storageLocation,
                 notes = notes,
                 priceOffersJson = offersJson,
                 priceHistoryJson = historyJson,
+                languageComparisonJson = langComparisonJson,
+                conditionPricesJson = conditionPricesJson,
+                conditionAssessmentJson = conditionAssessmentJson,
+                authenticityStatus = identification.authenticityRisk,
+                authenticityNotes = identification.authenticityNotes,
+                marketRegion = identification.marketRegion.code,
                 currency = "BRL"
             )
 
             val id = repository.insertItem(newItem)
             selectedItem.value = newItem.copy(id = id.toInt())
             resetScanState()
+        }
+    }
+
+    // --- Multi-Photo Management ---
+    fun updateItemBackImage(item: Item, bitmap: Bitmap) {
+        viewModelScope.launch {
+            val uri = ImageStorageHelper.saveBitmapToInternalStorage(getApplication(), bitmap, "back")
+            if (uri != null) {
+                val updated = item.copy(backImageUri = uri)
+                repository.updateItem(updated)
+                selectedItem.value = updated
+            }
+        }
+    }
+
+    fun addItemDetailImage(item: Item, bitmap: Bitmap) {
+        viewModelScope.launch {
+            val uri = ImageStorageHelper.saveBitmapToInternalStorage(getApplication(), bitmap, "detail")
+            if (uri != null) {
+                val current = item.getDetailImages().toMutableList()
+                current.add(uri)
+                val updated = item.copy(detailImagesJson = JsonParserHelper.stringListToJson(current))
+                repository.updateItem(updated)
+                selectedItem.value = updated
+            }
+        }
+    }
+
+    // --- Price Alert Setting ---
+    fun setItemPriceAlert(item: Item, targetPrice: Double, enabled: Boolean) {
+        viewModelScope.launch {
+            val updated = item.copy(targetPriceAlert = targetPrice, isAlertEnabled = enabled)
+            repository.updateItem(updated)
+            selectedItem.value = updated
         }
     }
 
@@ -280,7 +497,7 @@ class CollectorViewModel(
 
             val builder = StringBuilder()
             currentItems.forEachIndexed { idx, item ->
-                builder.append("${idx + 1}. [${item.subCategory}] ${item.name} (#${item.itemNumber}) - Coleção: ${item.collection} | Raridade: ${item.rarity} | Variante: ${item.variant} | Condição: ${item.condition} | Qtd: ${item.quantity} | Pago: R$ ${item.purchasePrice} | Est.: R$ ${item.estimatedValue}\n")
+                builder.append("${idx + 1}. [${item.subCategory}] ${item.name} (#${item.itemNumber}) - Idioma: ${item.language} | Coleção: ${item.collection} | Raridade: ${item.rarity} | Variante: ${item.variant} | Condição: ${item.condition} | Qtd: ${item.quantity} | Pago: R$ ${item.purchasePrice} | Est.: R$ ${item.estimatedValue}\n")
             }
 
             val result = GeminiClient.getAppraisal(builder.toString())
@@ -299,39 +516,36 @@ class CollectorViewModel(
     fun refreshItemPriceWithAI(item: Item) {
         viewModelScope.launch {
             _priceUpdateState.value = PriceUpdateState.Loading
-            val prices = GeminiClient.getEstimatedValueFromAI(
-                cardName = item.name,
-                category = item.type,
-                series = item.collection,
+            val prices = PriceSourceRegistry.generateRealisticOffersAndHistory(
+                itemName = item.name,
+                subCategory = item.subCategory,
                 rarity = item.rarity,
                 variant = item.variant,
-                condition = item.condition
+                condition = item.condition,
+                language = item.language,
+                marketRegion = MarketRegion.fromCode(item.marketRegion),
+                baseEstimatedPrice = item.estimatedValue
             )
 
-            if (prices.first > 0.0) {
-                val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
-                    itemName = item.name,
-                    subCategory = item.subCategory,
-                    rarity = item.rarity,
-                    variant = item.variant,
-                    condition = item.condition,
-                    baseEstimatedPrice = prices.first
-                )
+            val avgPrice = prices.first.map { it.priceInBRL }.average().takeIf { !it.isNaN() } ?: item.estimatedValue
+            val minP = prices.first.minOfOrNull { it.priceInBRL } ?: (avgPrice * 0.85)
+            val maxP = prices.first.maxOfOrNull { it.priceInBRL } ?: (avgPrice * 1.25)
+            val condTiers = PriceSourceRegistry.generateConditionPriceTiers(avgPrice)
+            val langComparisons = PriceSourceRegistry.generateLanguageComparisons(item.name, avgPrice, item.language)
 
-                val updatedItem = item.copy(
-                    estimatedValue = prices.first,
-                    minPrice = prices.second,
-                    maxPrice = prices.third,
-                    priceOffersJson = JsonParserHelper.offersToJson(offers),
-                    priceHistoryJson = JsonParserHelper.historyToJson(history),
-                    lastPriceUpdate = System.currentTimeMillis()
-                )
-                repository.updateItem(updatedItem)
-                selectedItem.value = updatedItem
-                _priceUpdateState.value = PriceUpdateState.Success(prices.first, prices.second, prices.third)
-            } else {
-                _priceUpdateState.value = PriceUpdateState.Error("Não foi possível encontrar cotações atualizadas no momento.")
-            }
+            val updatedItem = item.copy(
+                estimatedValue = avgPrice,
+                minPrice = minP,
+                maxPrice = maxP,
+                priceOffersJson = JsonParserHelper.offersToJson(prices.first),
+                priceHistoryJson = JsonParserHelper.historyToJson(prices.second),
+                conditionPricesJson = JsonParserHelper.conditionTiersToJson(condTiers),
+                languageComparisonJson = JsonParserHelper.langComparisonToJson(langComparisons),
+                lastPriceUpdate = System.currentTimeMillis()
+            )
+            repository.updateItem(updatedItem)
+            selectedItem.value = updatedItem
+            _priceUpdateState.value = PriceUpdateState.Success(avgPrice, minP, maxP)
         }
     }
 
@@ -382,6 +596,15 @@ class CollectorViewModel(
         }
     }
 
+    fun reloadCatalogWithFreshData() {
+        viewModelScope.launch {
+            repository.deleteAllItems()
+            val freshItems = InitialDataSeeder.getInitialItems()
+            repository.insertItems(freshItems)
+            selectedItem.value = null
+        }
+    }
+
     // --- Achievements ---
     val achievements: StateFlow<List<Achievement>> = allItems.map { items ->
         computeAchievements(items)
@@ -404,13 +627,7 @@ class CollectorViewModel(
     }
 
     // --- Marketplace / Community Trades ---
-    private val _marketOffers = MutableStateFlow<List<MarketOffer>>(
-        listOf(
-            MarketOffer("1", "Carlos Coleções", "avatar1", "Charizard ex (151 Foil)", "'71 Datsun 510 Wagon STH", "Procuro troca pau a pau ou cartas de One Piece!", "Trading Cards"),
-            MarketOffer("2", "Diecast Hunter BR", "avatar2", "Hot Wheels Nissan Skyline GT-R R34", "Black Lotus MTG", "Miniatura em cartela curta lacrada perfeita.", "Carrinhos / Diecast"),
-            MarketOffer("3", "Anime Cards SP", "avatar3", "Monkey D. Luffy Manga Alt Art", "Pikachu Illustrator ou PayPal", "Card graduado PSA 10 com certificado autêntico.", "Trading Cards")
-        )
-    )
+    private val _marketOffers = MutableStateFlow<List<MarketOffer>>(emptyList())
     val marketOffers: StateFlow<List<MarketOffer>> = _marketOffers.asStateFlow()
 
     fun submitMarketOffer(offered: String, requested: String, desc: String, category: String) {
@@ -427,126 +644,80 @@ class CollectorViewModel(
         _marketOffers.update { listOf(newOffer) + it }
     }
 
-    // Pre-populate with diverse starter items if clean install
-    init {
+    // --- Wishlist (Lista de Desejos) ---
+    val allWishlist: StateFlow<List<WishlistItem>> = repository.allWishlist.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+
+    fun insertWishlistItem(
+        name: String,
+        category: String,
+        subCategory: String,
+        targetMaxPrice: Double,
+        priority: String,
+        notes: String
+    ) {
         viewModelScope.launch {
-            val count = _allItems.first().size
-            if (count == 0) {
-                populateSampleCollection()
-            }
+            repository.insertWishlist(
+                WishlistItem(
+                    name = name,
+                    category = category,
+                    subCategory = subCategory,
+                    targetMaxPrice = targetMaxPrice,
+                    priority = priority,
+                    notes = notes
+                )
+            )
         }
     }
 
-    private suspend fun populateSampleCollection() {
-        val sample1Offers = listOf(
-            PriceOffer("LigaPokémon (Brasil)", 320.00, condition = "Near Mint", listingType = "Menor Preço Ativo"),
-            PriceOffer("TCGPlayer (EUA)", 345.00, condition = "Near Mint", listingType = "Média de Vendas"),
-            PriceOffer("Mercado Livre", 390.00, condition = "Lacrado / Sleeve", listingType = "Anúncio Verificado")
-        )
-        val sample1History = listOf(
-            PriceHistoryPoint("Mai/2026", 260.0),
-            PriceHistoryPoint("Jun/2026", 280.0),
-            PriceHistoryPoint("Jul/2026", 300.0),
-            PriceHistoryPoint("Ago/2026", 320.0)
-        )
+    fun toggleWishlistFound(item: WishlistItem) {
+        viewModelScope.launch {
+            repository.updateWishlist(item.copy(isFound = !item.isFound))
+        }
+    }
 
-        val item1 = Item(
-            name = "Charizard ex",
-            type = "Trading Cards",
-            subCategory = "Pokémon TCG",
-            collection = "Scarlet & Violet 151",
-            itemNumber = "151/165",
-            rarity = "Ultra Raro",
-            variant = "Foil / Holográfico",
-            condition = "Near Mint",
-            language = "PT-BR",
-            quantity = 1,
-            purchasePrice = 180.00,
-            estimatedValue = 320.00,
-            minPrice = 270.00,
-            maxPrice = 390.00,
-            confidenceScore = 94,
-            isFavorite = true,
-            storageLocation = "Pasta 151 - Folha 3",
-            tags = "pokémon, fogo, 151, charizard",
-            notes = "Em sleeve duplo Dragon Shield e Top Loader.",
-            priceOffersJson = JsonParserHelper.offersToJson(sample1Offers),
-            priceHistoryJson = JsonParserHelper.historyToJson(sample1History)
-        )
+    fun deleteWishlistItem(item: WishlistItem) {
+        viewModelScope.launch {
+            repository.deleteWishlist(item)
+        }
+    }
 
-        val sample2Offers = listOf(
-            PriceOffer("Mercado Livre Coleções", 420.00, condition = "Lacrado / Cartela Perfeita", listingType = "Anúncio Ativo"),
-            PriceOffer("eBay Diecast", 450.00, condition = "Mint", listingType = "Última Venda"),
-            PriceOffer("Grupos HW Brasil", 380.00, condition = "Lacrado", listingType = "Oferta de Colecionador")
-        )
-        val sample2History = listOf(
-            PriceHistoryPoint("Mai/2026", 360.0),
-            PriceHistoryPoint("Jun/2026", 390.0),
-            PriceHistoryPoint("Jul/2026", 410.0),
-            PriceHistoryPoint("Ago/2026", 420.0)
-        )
+    fun generatePortfolioReportText(currency: AppCurrency): String {
+        val items = allItems.value
+        val totalEst = items.sumOf { it.totalEstimatedValue }
+        val totalPaid = items.sumOf { it.totalPurchasePrice }
+        val profit = totalEst - totalPaid
+        val profitPercent = if (totalPaid > 0) (profit / totalPaid) * 100.0 else 0.0
 
-        val item2 = Item(
-            name = "'71 Datsun 510 Wagon",
-            type = "Carrinhos / Diecast",
-            subCategory = "Hot Wheels",
-            collection = "Mainline 2024 - HW Wagons",
-            itemNumber = "#142/250",
-            rarity = "Super Treasure Hunt",
-            variant = "Spectraflame Azul (STH)",
-            condition = "Novo / Lacrado",
-            scale = "1:64",
-            color = "Azul Spectraflame",
-            year = "2024",
-            quantity = 1,
-            purchasePrice = 25.00,
-            estimatedValue = 420.00,
-            minPrice = 380.00,
-            maxPrice = 490.00,
-            confidenceScore = 96,
-            isFavorite = true,
-            storageLocation = "Caixa Acrílica Protetora #4",
-            tags = "hot wheels, sth, datsun, real riders",
-            notes = "Pneus de borracha Real Riders, pintura spectraflame e logo TH na lateral.",
-            priceOffersJson = JsonParserHelper.offersToJson(sample2Offers),
-            priceHistoryJson = JsonParserHelper.historyToJson(sample2History)
-        )
+        val sb = StringBuilder()
+        sb.append("RELATÓRIO DO PORTFÓLIO DE COLECIONÁVEIS\n")
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        sb.append("Valor Total Estimado: ${currency.formatValue(totalEst)}\n")
+        sb.append("Total Investido: ${currency.formatValue(totalPaid)}\n")
+        sb.append("Rendimento: ${if (profit >= 0) "+" else ""}${currency.formatValue(profit)} (${String.format("%.1f", profitPercent)}%)\n")
+        sb.append("Total de Itens: ${items.sumOf { it.quantity }}\n")
+        sb.append("Cards TCG: ${items.filter { it.isCard }.sumOf { it.quantity }}\n")
+        sb.append("Carrinhos Diecast: ${items.filter { it.isDiecast }.sumOf { it.quantity }}\n")
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+        sb.append("CATÁLOGO DETALHADO:\n\n")
 
-        val sample3Offers = listOf(
-            PriceOffer("TCGPlayer", 95.00, condition = "Near Mint", listingType = "Market Price"),
-            PriceOffer("Cardmarket (EU)", 110.00, condition = "Mint", listingType = "Média Europeia")
-        )
-        val sample3History = listOf(
-            PriceHistoryPoint("Mai/2026", 75.0),
-            PriceHistoryPoint("Jun/2026", 80.0),
-            PriceHistoryPoint("Jul/2026", 90.0),
-            PriceHistoryPoint("Ago/2026", 95.0)
-        )
+        items.forEachIndexed { index, item ->
+            sb.append("${index + 1}. ${item.name} (${item.type})\n")
+            if (item.language.isNotBlank() && item.language != "N/A") sb.append("   • Idioma: ${item.languageDisplayName}\n")
+            if (item.collection.isNotBlank()) sb.append("   • Coleção: ${item.collection}\n")
+            if (item.itemNumber.isNotBlank()) sb.append("   • Nº: ${item.itemNumber}\n")
+            if (item.rarity.isNotBlank()) sb.append("   • Raridade: ${item.rarity} | Condição: ${item.condition}\n")
+            sb.append("   • Quantidade: ${item.quantity} un.\n")
+            sb.append("   • Cotação Atual: ${currency.formatValue(item.estimatedValue)} (Total: ${currency.formatValue(item.totalEstimatedValue)})\n")
+            if (item.purchasePrice > 0) sb.append("   • Preço Pago: ${currency.formatValue(item.purchasePrice)}\n")
+            if (item.storageLocation.isNotBlank()) sb.append("   • Local: ${item.storageLocation}\n")
+            sb.append("\n")
+        }
 
-        val item3 = Item(
-            name = "Monkey D. Luffy",
-            type = "Trading Cards",
-            subCategory = "One Piece Card Game",
-            collection = "Awakening of the New Era (OP-05)",
-            itemNumber = "OP05-060",
-            rarity = "Super Raro",
-            variant = "Alternate Art (Manga)",
-            condition = "Mint",
-            language = "EN",
-            quantity = 1,
-            purchasePrice = 60.00,
-            estimatedValue = 95.00,
-            minPrice = 85.00,
-            maxPrice = 125.00,
-            confidenceScore = 91,
-            isFavorite = false,
-            storageLocation = "Pasta One Piece",
-            tags = "one piece, luffy, op05, manga",
-            priceOffersJson = JsonParserHelper.offersToJson(sample3Offers),
-            priceHistoryJson = JsonParserHelper.historyToJson(sample3History)
-        )
-
-        repository.insertItems(listOf(item1, item2, item3))
+        return sb.toString()
     }
 }
 
@@ -562,3 +733,4 @@ class CollectorViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

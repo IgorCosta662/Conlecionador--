@@ -2,10 +2,26 @@ package com.example.data
 
 import kotlinx.coroutines.flow.Flow
 
-class ItemRepository(private val itemDao: ItemDao) {
+class ItemRepository(
+    private val itemDao: ItemDao,
+    private val wishlistDao: WishlistDao? = null
+) {
     val allItems: Flow<List<Item>> = itemDao.getAllItems()
     val favoriteItems: Flow<List<Item>> = itemDao.getFavoriteItems()
     val totalCount: Flow<Int> = itemDao.getTotalItemsCount()
+    val allWishlist: Flow<List<WishlistItem>> = wishlistDao?.getAllWishlistItems() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+    suspend fun insertWishlist(item: WishlistItem): Long {
+        return wishlistDao?.insert(item) ?: -1L
+    }
+
+    suspend fun updateWishlist(item: WishlistItem) {
+        wishlistDao?.update(item)
+    }
+
+    suspend fun deleteWishlist(item: WishlistItem) {
+        wishlistDao?.delete(item)
+    }
 
     suspend fun getItemById(id: Int): Item? {
         return itemDao.getItemById(id)

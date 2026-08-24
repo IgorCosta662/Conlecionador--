@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.components.CurrencySelector
@@ -127,7 +129,7 @@ fun CompareScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "📊 RESUMO COMPARATIVO",
+                            text = "RESUMO COMPARATIVO",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -137,7 +139,7 @@ fun CompareScreen(
 
                         if (highestValued != null) {
                             Text(
-                                text = "🏆 Maior Valor Médio: ${highestValued.name} (${selectedCurrency.format(highestValued.estimatedValue)})",
+                                text = "Maior Valor Médio: ${highestValued.name} (${selectedCurrency.format(highestValued.estimatedValue)})",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -145,7 +147,7 @@ fun CompareScreen(
 
                         if (highestProfit != null && highestProfit.purchasePrice > 0) {
                             Text(
-                                text = "📈 Maior Valorização: ${highestProfit.name} (+${String.format(java.util.Locale.US, "%.1f", highestProfit.profitPercentage)}%)",
+                                text = "Maior Valorização: ${highestProfit.name} (+${String.format(java.util.Locale.US, "%.1f", highestProfit.profitPercentage)}%)",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF2E7D32)
@@ -180,18 +182,29 @@ fun ItemComparisonCard(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Header with remove button
+            // Header with thumbnail and remove button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (item.isCard) Icons.Default.Style else Icons.Default.DirectionsCar,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
+                if (!item.imageUri.isNullOrBlank()) {
+                    AsyncImage(
+                        model = item.imageUri,
+                        contentDescription = item.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (item.isCard) Icons.Default.Style else Icons.Default.DirectionsCar,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.Close, contentDescription = "Remover", modifier = Modifier.size(16.dp))
                 }

@@ -1,13 +1,20 @@
 package com.example.ui.screens
 
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,18 +22,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.PriceUpdateState
 import com.example.ui.Routes
 import com.example.ui.components.CurrencySelector
 import com.example.ui.components.PriceEvolutionChart
+import com.example.ui.components.SlabShowcaseDialog
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -41,6 +52,24 @@ fun ItemDetailScreen(
     val priceUpdateState by viewModel.priceUpdateState.collectAsStateWithLifecycle()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSlabShowcase by remember { mutableStateOf(false) }
+    var showPriceAlertDialog by remember { mutableStateOf(false) }
+
+    val backCameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null && selectedItem != null) {
+            viewModel.updateItemBackImage(selectedItem!!, bitmap)
+        }
+    }
+
+    val detailCameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null && selectedItem != null) {
+            viewModel.addItemDetailImage(selectedItem!!, bitmap)
+        }
+    }
 
     if (selectedItem == null) {
         LaunchedEffect(Unit) {
@@ -58,6 +87,19 @@ fun ItemDetailScreen(
         dateFormat.format(Date(item.lastPriceUpdate))
     }
 
+    val conditionAssessment = remember(item.conditionAssessmentJson) {
+        item.getConditionAssessment()
+    }
+    val conditionTiers = remember(item.conditionPricesJson) {
+        item.getConditionPriceTiers()
+    }
+    val langComparisons = remember(item.languageComparisonJson) {
+        item.getLanguageComparisonList()
+    }
+    val detailImages = remember(item.detailImagesJson) {
+        item.getDetailImages()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -68,6 +110,13 @@ fun ItemDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showPriceAlertDialog = true }) {
+                        Icon(
+                            imageVector = if (item.isAlertEnabled) Icons.Filled.NotificationsActive else Icons.Outlined.Notifications,
+                            contentDescription = "Alerta de Preço",
+                            tint = if (item.isAlertEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     IconButton(onClick = { viewModel.toggleFavorite(item) }) {
                         Icon(
                             imageVector = if (item.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -96,37 +145,108 @@ fun ItemDetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Hero Photo / Header
+            // 1. HERO PHOTO & MULTI-PHOTO GALLERY
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        // Main Photo
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(180.dp)
+                                .height(230.dp)
                                 .background(
                                     Brush.verticalGradient(
-                                        if (item.isCard) listOf(Color(0xFF6750A4), Color(0xFF9C27B0))
-                                        else listOf(Color(0xFFE53935), Color(0xFFFF7043))
+                                        if (item.isCard) listOf(Color(0xFF2E1C4E), Color(0xFF140D24))
+                                        else listOf(Color(0xFF421515), Color(0xFF1C0A0A))
                                     )
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = if (item.isCard) Icons.Default.Style else Icons.Default.DirectionsCar,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(72.dp)
-                            )
+                            if (!item.imageUri.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = item.imageUri,
+                                    contentDescription = item.name,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (item.isCard) Icons.Default.Style else Icons.Default.DirectionsCar,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(72.dp)
+                                )
+                            }
                         }
 
+                        // Multi-photo strip (Verso, Detalhes adicionais)
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Fotos do Item (Frente, Verso, Detalhes)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(
+                                        onClick = { backCameraLauncher.launch(null) },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.FlipToBack, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(if (item.backImageUri != null) "Verso" else "+ Verso", fontSize = 11.sp)
+                                    }
+                                    TextButton(
+                                        onClick = { detailCameraLauncher.launch(null) },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("+ Detalhe", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+
+                            // Secondary photos row
+                            val extraPhotos = buildList {
+                                item.backImageUri?.let { add("Verso" to it) }
+                                detailImages.forEachIndexed { i, uri -> add("Detalhe #${i + 1}" to uri) }
+                            }
+
+                            if (extraPhotos.isNotEmpty()) {
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                ) {
+                                    items(extraPhotos) { (label, uri) ->
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            AsyncImage(
+                                                model = uri,
+                                                contentDescription = label,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(64.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            )
+                                            Text(label, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // Item Identifiers
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -171,7 +291,7 @@ fun ItemDetailScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Badges (Rarity, Variant, Condition, Language, Scale, Year)
+                            // Badges (Rarity, Variant, Condition, Language Flag)
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -183,7 +303,7 @@ fun ItemDetailScreen(
                                 if (item.variant.isNotBlank() && item.variant != "Normal") {
                                     AssistChip(
                                         onClick = {},
-                                        label = { Text("✨ ${item.variant}", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                        label = { Text(item.variant, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                                         colors = AssistChipDefaults.assistChipColors(
                                             containerColor = Color(0xFFFFE082).copy(alpha = 0.4f),
                                             labelColor = Color(0xFFE65100)
@@ -192,21 +312,32 @@ fun ItemDetailScreen(
                                 }
                                 AssistChip(
                                     onClick = {},
-                                    label = { Text(item.condition, fontSize = 11.sp) }
+                                    label = { Text(item.languageDisplayName, fontSize = 11.sp) }
                                 )
-                                if (item.language.isNotBlank() && item.language != "N/A") {
-                                    AssistChip(
-                                        onClick = {},
-                                        label = { Text(item.language, fontSize = 11.sp) }
-                                    )
-                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Slab 3D Holographic Showcase Trigger Button
+                            Button(
+                                onClick = { showSlabShowcase = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) {
+                                Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Abrir Vitrine Slab 3D & Efeito Foil", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
 
-            // Valuation & Price Box
+            // 2. VALUATION & PRICE METRICS
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -287,9 +418,7 @@ fun ItemDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("refresh_price_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             if (priceUpdateState is PriceUpdateState.Loading) {
@@ -319,18 +448,165 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Storage Location & Notes
+            // 3. AVALIAÇÃO DE CONDIÇÃO DETALHADA & AVISO LEGAL
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "ESTADO DE CONSERVAÇÃO (IA)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = item.condition,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Cantos (Corners)", style = MaterialTheme.typography.bodySmall)
+                                Text(conditionAssessment.corners, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Bordas (Edges)", style = MaterialTheme.typography.bodySmall)
+                                Text(conditionAssessment.edges, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Superfície (Surface)", style = MaterialTheme.typography.bodySmall)
+                                Text(conditionAssessment.scratches, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Centralização (Centering)", style = MaterialTheme.typography.bodySmall)
+                                Text(conditionAssessment.centering, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (conditionTiers.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text("Matriz de Preços por Estado:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(conditionTiers) { tier ->
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(tier.condition, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                            Text(selectedCurrency.format(tier.priceBrl), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = "Esta análise é apenas uma estimativa e não substitui uma avaliação profissional.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. COTAÇÃO POR IDIOMA (PT-BR vs EN vs JP)
+            if (langComparisons.isNotEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("COTAÇÃO ISOLADA POR IDIOMA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            langComparisons.forEach { langComp ->
+                                val isCurrent = langComp.languageCode.equals(item.language, ignoreCase = true)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Column {
+                                            Text(
+                                                text = "${langComp.languageName}${if (isCurrent) " (Seu item)" else ""}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                            Text(
+                                                text = "${langComp.languageCode} • Mín: ${selectedCurrency.format(langComp.minPriceBrl)}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = selectedCurrency.format(langComp.averagePriceBrl),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. STORAGE LOCATION & NOTES
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
                     Column(
                         modifier = Modifier
@@ -369,7 +645,7 @@ fun ItemDetailScreen(
                 }
             }
 
-            // Price Evolution Interactive Chart
+            // 6. PRICE EVOLUTION CHART
             item {
                 PriceEvolutionChart(
                     history = item.getHistoryList(),
@@ -377,7 +653,7 @@ fun ItemDetailScreen(
                 )
             }
 
-            // Store Offers List
+            // 7. STORE OFFERS LIST
             item {
                 val offers = item.getOffersList()
                 if (offers.isNotEmpty()) {
@@ -393,7 +669,7 @@ fun ItemDetailScreen(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "🛒 OFERTAS VERIFICADAS",
+                                text = "OFERTAS VERIFICADAS",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -447,6 +723,62 @@ fun ItemDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showSlabShowcase) {
+        SlabShowcaseDialog(
+            item = item,
+            currency = selectedCurrency,
+            onDismiss = { showSlabShowcase = false }
+        )
+    }
+
+    // Price Target Alert Dialog
+    if (showPriceAlertDialog) {
+        var alertTargetText by remember { mutableStateOf(if (item.targetPriceAlert > 0) item.targetPriceAlert.toString() else "") }
+        var isAlertOn by remember { mutableStateOf(item.isAlertEnabled) }
+
+        AlertDialog(
+            onDismissRequest = { showPriceAlertDialog = false },
+            title = { Text("Alerta de Preço Alvo", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Defina um valor alvo para receber notificações quando este item atingir a cotação desejada.")
+                    OutlinedTextField(
+                        value = alertTargetText,
+                        onValueChange = { alertTargetText = it },
+                        label = { Text("Preço Alvo (R$)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Ativar Alerta")
+                        Switch(
+                            checked = isAlertOn,
+                            onCheckedChange = { isAlertOn = it }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val target = alertTargetText.replace(",", ".").toDoubleOrNull() ?: 0.0
+                    viewModel.setItemPriceAlert(item, target, isAlertOn)
+                    showPriceAlertDialog = false
+                }) {
+                    Text("Salvar Alerta")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPriceAlertDialog = false }) {
                     Text("Cancelar")
                 }
             }

@@ -5,65 +5,209 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Trading Card Layer (Left tilted) -->
+
+    <!-- 1. Holographic Trading Card (Tilted Left) -->
+    <!-- Card Outer Shadow / Glow -->
     <path
-        android:pathData="M34,26 L56,29 C58.2,29.3 59.8,31.3 59.5,33.5 L53,74 C52.7,76.2 50.7,77.8 48.5,77.5 L26.5,74.5 C24.3,74.2 22.7,72.2 23,70 L29.5,29.5 C29.8,27.3 31.8,25.7 34,26 Z">
+        android:pathData="M31,23 L55,27 C57.8,27.5 59.8,30.1 59.3,32.9 L52.8,71.5 C52.3,74.3 49.7,76.3 46.9,75.8 L22.9,71.8 C20.1,71.3 18.1,68.7 18.6,65.9 L25.1,27.3 C25.6,24.5 28.2,22.5 31,23 Z"
+        android:fillColor="#337C4DFF" />
+
+    <!-- Card Gold Border -->
+    <path
+        android:pathData="M32,24 L55,27.8 C57.2,28.2 58.8,30.3 58.4,32.5 L52.4,69.5 C52,71.7 49.9,73.3 47.7,72.9 L24.7,69.1 C22.5,68.7 20.9,66.6 21.3,64.4 L27.3,27.4 C27.7,25.2 29.8,23.6 32,24 Z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="23"
+                android:startX="21"
+                android:startY="24"
+                android:endX="59"
+                android:endY="73"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFE082" />
+                <item android:offset="0.5" android:color="#FFB300" />
+                <item android:offset="1.0" android:color="#FF8F00" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Card Body Inner -->
+    <path
+        android:pathData="M33,26 L53.5,29.4 C54.8,29.6 55.8,30.8 55.6,32.1 L50.2,67 C50,68.3 48.8,69.3 47.5,69.1 L27,65.7 C25.7,65.5 24.7,64.3 24.9,63 L30.3,28.1 C30.5,26.8 31.7,25.8 33,26 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="25"
                 android:startY="26"
-                android:endX="60"
-                android:endY="78"
+                android:endX="56"
+                android:endY="69"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#7C4DFF" />
-                <item android:offset="1.0" android:color="#536DFE" />
+                <item android:offset="0.0" android:color="#4A148C" />
+                <item android:offset="0.4" android:color="#311B92" />
+                <item android:offset="1.0" android:color="#1A237E" />
             </gradient>
         </aapt:attr>
     </path>
-    <!-- Holographic Star inside card -->
-    <path
-        android:pathData="M41,40 L43,46 L49,46.5 L44.5,50.5 L46,56.5 L41,53 L36,56.5 L37.5,50.5 L33,46.5 L39,46 Z"
-        android:fillColor="#FFD54F" />
 
-    <!-- Diecast Car Layer (Right front) -->
+    <!-- Card Holographic Foil Art Banner -->
     <path
-        android:pathData="M52,58 L62,50 C64,48.5 67,48.5 70,50 L84,56 C86.5,57 88,59.5 88,62 L88,71 C88,72.5 86.8,73.7 85.3,73.7 L49,73.7 C47.5,73.7 46.3,72.5 46.3,71 L46.3,64 C46.3,61.2 48.8,59 52,58 Z">
+        android:pathData="M34,31 L51.5,34 L47.5,50 L30,47 Z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="46"
-                android:startY="48"
-                android:endX="88"
-                android:endY="74"
+                android:startX="30"
+                android:startY="31"
+                android:endX="52"
+                android:endY="50"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#FF5252" />
-                <item android:offset="1.0" android:color="#FF7A00" />
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="0.5" android:color="#D500F9" />
+                <item android:offset="1.0" android:color="#FFD600" />
             </gradient>
         </aapt:attr>
     </path>
-    
-    <!-- Car windshield -->
-    <path
-        android:pathData="M62,52 L69,52 L77,57 L58,57 Z"
-        android:fillColor="#80E0FF" />
 
-    <!-- Wheels -->
+    <!-- Card Emblem (Shining Star) -->
     <path
-        android:pathData="M53,74 A6,6 0 1,0 65,74 A6,6 0 1,0 53,74 Z"
-        android:fillColor="#212121" />
-    <path
-        android:pathData="M56,74 A3,3 0 1,0 62,74 A3,3 0 1,0 56,74 Z"
-        android:fillColor="#E0E0E0" />
+        android:pathData="M40.7,37.5 L42.1,41.2 L46,41.6 L42.9,44.2 L43.8,48 L40.5,45.8 L37.2,48 L38.1,44.2 L35,41.6 L38.9,41.2 Z"
+        android:fillColor="#FFFFFF" />
 
+    <!-- 2. Diecast / Hot Wheels Sports Car (Front Right) -->
+    <!-- Car Body -->
     <path
-        android:pathData="M73,74 A6,6 0 1,0 85,74 A6,6 0 1,0 73,74 Z"
-        android:fillColor="#212121" />
-    <path
-        android:pathData="M76,74 A3,3 0 1,0 82,74 A3,3 0 1,0 76,74 Z"
-        android:fillColor="#E0E0E0" />
+        android:pathData="M48,56 C49.5,55 52,54.5 54.5,54.5 L63,48 C65,46.5 68,46.5 71,48 L83.5,53.5 C86,54.5 88,57.5 88,60.5 L88,68 C88,69.5 86.8,70.5 85.3,70.5 L47.5,70.5 C46,70.5 44.8,69.3 44.8,67.8 L44.8,61.5 C44.8,59 46.2,57.2 48,56 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="44"
+                android:startY="46"
+                android:endX="88"
+                android:endY="71"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF1744" />
+                <item android:offset="0.6" android:color="#FF5252" />
+                <item android:offset="1.0" android:color="#FF9100" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- Sparkle Diamond -->
+    <!-- Car Rear Wing / Spoiler -->
     <path
-        android:pathData="M78,28 L80.5,34 L86.5,36.5 L80.5,39 L78,45 L75.5,39 L69.5,36.5 L75.5,34 Z"
+        android:pathData="M42,57 L47,57 L47,60 L42,60 Z"
+        android:fillColor="#D50000" />
+
+    <!-- Car Windshield & Side Window -->
+    <path
+        android:pathData="M64,50 L70,50 L77.5,54 L59,54 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="59"
+                android:startY="50"
+                android:endX="78"
+                android:endY="54"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#E0F7FA" />
+                <item android:offset="1.0" android:color="#80DEEA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Car Headlight (Glowing Gold) -->
+    <path
+        android:pathData="M84.5,58 L87.5,59.5 L86.5,62 L83.5,60.5 Z"
+        android:fillColor="#FFEA00" />
+
+    <!-- Wheels (Chromed Rims & Tires) -->
+    <!-- Rear Wheel -->
+    <path
+        android:pathData="M52.5,70.5 A5.5,5.5 0 1,0 63.5,70.5 A5.5,5.5 0 1,0 52.5,70.5 Z"
+        android:fillColor="#1A1A1A" />
+    <path
+        android:pathData="M55.5,70.5 A2.5,2.5 0 1,0 60.5,70.5 A2.5,2.5 0 1,0 55.5,70.5 Z"
+        android:fillColor="#ECEFF1" />
+    <path
+        android:pathData="M57,70.5 A1,1 0 1,0 59,70.5 A1,1 0 1,0 57,70.5 Z"
+        android:fillColor="#FFD700" />
+
+    <!-- Front Wheel -->
+    <path
+        android:pathData="M73.5,70.5 A5.5,5.5 0 1,0 84.5,70.5 A5.5,5.5 0 1,0 73.5,70.5 Z"
+        android:fillColor="#1A1A1A" />
+    <path
+        android:pathData="M76.5,70.5 A2.5,2.5 0 1,0 81.5,70.5 A2.5,2.5 0 1,0 76.5,70.5 Z"
+        android:fillColor="#ECEFF1" />
+    <path
+        android:pathData="M78,70.5 A1,1 0 1,0 80,70.5 A1,1 0 1,0 78,70.5 Z"
+        android:fillColor="#FFD700" />
+
+    <!-- 3. Market Growth / Trading Trend Line & Arrow (Upward Surge) -->
+    <!-- Trend Area Glow -->
+    <path
+        android:pathData="M48,46 L60,38 L72,42 L82,27 L82,34 L73,46 L60,42 L48,50 Z"
+        android:fillColor="#2200E676" />
+
+    <!-- Trend Line -->
+    <path
+        android:pathData="M45,47 L58,38 L68,43 L81,26"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="45"
+                android:startY="47"
+                android:endX="81"
+                android:endY="26"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="0.5" android:color="#00E676" />
+                <item android:offset="1.0" android:color="#76FF03" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Arrow Head at top right -->
+    <path
+        android:pathData="M73,25 L84,24 L85,35 L80.5,31 L77,35 L74,32 L77.5,28.5 Z"
+        android:fillColor="#76FF03" />
+
+    <!-- Trend Data Nodes -->
+    <path
+        android:pathData="M56.5,38 A2,2 0 1,0 60.5,38 A2,2 0 1,0 56.5,38 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M66.5,43 A2,2 0 1,0 70.5,43 A2,2 0 1,0 66.5,43 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 4. Market Price Tag / Gold Coin Badge (Top Center-Right) -->
+    <!-- Gold Coin Outer -->
+    <path
+        android:pathData="M64,24 A7.5,7.5 0 1,0 79,24 A7.5,7.5 0 1,0 64,24 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="64"
+                android:startY="17"
+                android:endX="79"
+                android:endY="31"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFE082" />
+                <item android:offset="0.5" android:color="#FFC107" />
+                <item android:offset="1.0" android:color="#FF8F00" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Coin Inner Inset -->
+    <path
+        android:pathData="M66,24 A5.5,5.5 0 1,0 77,24 A5.5,5.5 0 1,0 66,24 Z"
+        android:fillColor="#FFA000" />
+    <!-- Currency / Valuation Symbol '$' inside coin -->
+    <path
+        android:pathData="M71.5,19.5 L72.5,19.5 L72.5,20.6 C73.6,20.8 74.3,21.5 74.4,22.4 L73.2,22.4 C73.1,21.9 72.6,21.5 71.9,21.5 C71.1,21.5 70.6,21.9 70.6,22.5 C70.6,23.1 71.1,23.4 72.2,23.7 C73.6,24.1 74.5,24.6 74.5,25.6 C74.5,26.5 73.7,27.2 72.5,27.4 L72.5,28.5 L71.5,28.5 L71.5,27.4 C70.3,27.2 69.5,26.4 69.4,25.3 L70.6,25.3 C70.7,26 71.3,26.5 72.1,26.5 C72.9,26.5 73.4,26 73.4,25.5 C73.4,24.8 72.8,24.5 71.8,24.2 C70.5,23.8 69.6,23.3 69.6,22.3 C69.6,21.5 70.4,20.7 71.5,20.5 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 5. Brilliant Sparkles & Luxury Diamond Accents -->
+    <!-- Top Sparkle -->
+    <path
+        android:pathData="M84,18 L85.5,22 L89.5,23.5 L85.5,25 L84,29 L82.5,25 L78.5,23.5 L82.5,22 Z"
         android:fillColor="#00E5FF" />
+
+    <!-- Left Accent Sparkle -->
+    <path
+        android:pathData="M23,35 L24.5,38 L27.5,39.5 L24.5,41 L23,44 L21.5,41 L18.5,39.5 L21.5,38 Z"
+        android:fillColor="#FFD700" />
 </vector>

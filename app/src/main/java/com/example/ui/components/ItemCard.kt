@@ -16,20 +16,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.AppCurrency
 import com.example.data.Item
 
 @Composable
 fun ItemCard(
     item: Item,
-    selectedCurrency: AppCurrency,
+    currency: AppCurrency,
+    onClick: () -> Unit
+) {
+    ItemCard(
+        item = item,
+        selectedCurrency = currency,
+        onClick = onClick,
+        onToggleFavorite = {}
+    )
+}
+
+@Composable
+fun ItemCard(
+    item: Item,
+    selectedCurrency: AppCurrency = AppCurrency.BRL,
     onClick: () -> Unit,
-    onToggleFavorite: () -> Unit,
+    onToggleFavorite: () -> Unit = {},
     modifier: Modifier = Modifier,
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
@@ -82,7 +98,7 @@ fun ItemCard(
                 )
             }
 
-            // Thumbnail / Icon visual
+            // Thumbnail / Photo visual
             Box(
                 modifier = Modifier
                     .size(68.dp)
@@ -95,18 +111,27 @@ fun ItemCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = when {
-                        item.isCard -> Icons.Default.Style
-                        item.isDiecast -> Icons.Default.DirectionsCar
-                        item.type.contains("Figure", ignoreCase = true) -> Icons.Default.SmartToy
-                        item.type.contains("Moeda", ignoreCase = true) -> Icons.Default.MonetizationOn
-                        else -> Icons.Default.Category
-                    },
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
+                if (!item.imageUri.isNullOrBlank()) {
+                    AsyncImage(
+                        model = item.imageUri,
+                        contentDescription = item.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = when {
+                            item.isCard -> Icons.Default.Style
+                            item.isDiecast -> Icons.Default.DirectionsCar
+                            item.type.contains("Figure", ignoreCase = true) -> Icons.Default.SmartToy
+                            item.type.contains("Moeda", ignoreCase = true) -> Icons.Default.MonetizationOn
+                            else -> Icons.Default.Category
+                        },
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
 
                 if (item.quantity > 1) {
                     Box(
