@@ -10,6 +10,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.api.GeminiClient
 import com.example.api.ItemIdentificationResult
 import com.example.api.PriceSourceRegistry
+import com.example.api.ScryfallCard
+import com.example.api.TcgdexCardBrief
+import com.example.api.TcgdexCardDetail
+import com.example.api.TcgOnlineService
 import com.example.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -711,6 +715,118 @@ class CollectorViewModel(
         }
 
         return sb.toString()
+    }
+
+    // ---------------- Live Online Search (Scryfall & TCGDex APIs) ----------------
+    val isOnlineSearching = MutableStateFlow(false)
+    val scryfallOnlineResults = MutableStateFlow<List<ScryfallCard>>(emptyList())
+    val tcgdexOnlineResults = MutableStateFlow<List<TcgdexCardBrief>>(emptyList())
+    val onlineSearchMessage = MutableStateFlow<String?>(null)
+
+    fun searchScryfallOnline(query: String) {
+        if (query.isBlank()) {
+            scryfallOnlineResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            isOnlineSearching.value = true
+            onlineSearchMessage.value = "Buscando em Scryfall API..."
+            try {
+                val results = TcgOnlineService.searchMagicCards(query)
+                scryfallOnlineResults.value = results
+                onlineSearchMessage.value = if (results.isEmpty()) "Nenhuma carta encontrada no Scryfall." else null
+            } catch (e: Exception) {
+                onlineSearchMessage.value = "Erro ao consultar Scryfall: ${e.localizedMessage}"
+            } finally {
+                isOnlineSearching.value = false
+            }
+        }
+    }
+
+    fun searchTcgdexOnline(query: String) {
+        if (query.isBlank()) {
+            tcgdexOnlineResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            isOnlineSearching.value = true
+            onlineSearchMessage.value = "Buscando em TCGDex API (PT/EN)..."
+            try {
+                val results = TcgOnlineService.searchPokemonCards(query)
+                tcgdexOnlineResults.value = results
+                onlineSearchMessage.value = if (results.isEmpty()) "Nenhuma carta encontrada no TCGDex." else null
+            } catch (e: Exception) {
+                onlineSearchMessage.value = "Erro ao consultar TCGDex: ${e.localizedMessage}"
+            } finally {
+                isOnlineSearching.value = false
+            }
+        }
+    }
+
+    fun clearOnlineSearchResults() {
+        scryfallOnlineResults.value = emptyList()
+        tcgdexOnlineResults.value = emptyList()
+        onlineSearchMessage.value = null
+    }
+
+    fun importScryfallCardToCollection(
+        card: ScryfallCard,
+        onComplete: (Item) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val highResImage = card.getHighResImage()
+            val estPrice = card.getEstimatedPriceBrl()
+            val newItem = Item(
+                name = card.name,
+                type = "Card TCG",
+                subCategory = "Magic: The Gathering",
+                collection = card.setName.ifBlank { "Magic Modern / Standard" },
+                itemNumber = card.collectorNumber,
+                rarity = when (card.rarity.lowercase()) {
+                    "mythic" -> "Mítica Rara"
+                    "rare" -> "Rara"
+                    "uncommon" -> "Incomum"
+                    else -> "Comum"
+                },
+                condition = "Near Mint",
+                language = "EN",
+                estimatedValue = estPrice,
+                purchasePrice = estPrice * 0.75,
+                imageUri = highResImage,
+                notes = "Importado via Scryfall API (${card.setName} #${card.collectorNumber})"
+            )
+            val id = repository.insertItem(newItem)
+            onComplete(newItem.copy(id = id.toInt()))
+        }
+    }
+
+    fun importTcgdexCardToCollection(
+        brief: TcgdexCardBrief,
+        onComplete: (Item) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val detail = TcgOnlineService.getPokemonCardDetail(brief.id)
+            val highResImage = detail?.getHighResImage() ?: brief.getHighResImage()
+            val estPrice = detail?.getEstimatedPriceBrl() ?: 15.0
+            val setName = detail?.set?.name ?: "Pokémon TCG"
+
+            val newItem = Item(
+                name = detail?.name ?: brief.name,
+                type = "Card TCG",
+                subCategory = "Pokémon TCG",
+                collection = setName,
+                itemNumber = detail?.localId ?: brief.localId,
+                rarity = detail?.rarity ?: "Comum",
+                condition = "Near Mint",
+                language = "PT-BR",
+                estimatedValue = estPrice,
+                purchasePrice = estPrice * 0.75,
+                imageUri = highResImage,
+                notes = "Importado via TCGDex API ($setName #${detail?.localId ?: brief.localId})"
+            )
+            val id = repository.insertItem(newItem)
+            onComplete(newItem.copy(id = id.toInt()))
+        }
     }
 }
 

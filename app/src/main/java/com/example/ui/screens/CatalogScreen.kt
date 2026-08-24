@@ -33,14 +33,20 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.api.scryfall.ScryfallCard
+import com.example.api.scryfall.ScryfallDataService
+import com.example.api.scryfall.ScryfallSet
 import com.example.data.*
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
+import com.example.ui.components.ScryfallCardDetailDialog
 import com.example.util.OfficialCardImageHelper
+import kotlinx.coroutines.launch
 
 enum class CatalogTab(val title: String, val subtitle: String) {
     ALL_CARDS("Todas as Cartas", "Grade & Lista Completa"),
-    BY_SET("Por Edições & Sets", "Navegador de Coleções")
+    BY_SET("Edições & Sets", "Navegador de Coleções"),
+    MTG_SCRYFALL("Magic (Scryfall)", "Sets & Expansões Oficiais")
 }
 
 enum class CatalogSortOption(val title: String) {
@@ -59,6 +65,7 @@ fun CatalogScreen(
 ) {
     val allCollectionItems by viewModel.allItems.collectAsState()
     val currency by viewModel.selectedCurrency.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     var activeTab by remember { mutableStateOf(CatalogTab.ALL_CARDS) }
     var searchQuery by remember { mutableStateOf("") }
@@ -74,6 +81,29 @@ fun CatalogScreen(
     var itemToAddToCollection by remember { mutableStateOf<RealCatalogEntry?>(null) }
     var itemForDetailDialog by remember { mutableStateOf<RealCatalogEntry?>(null) }
     var selectedSetDetail by remember { mutableStateOf<CollectibleSet?>(null) }
+
+    // Scryfall MTG Sets Tab State
+    var scryfallSets by remember { mutableStateOf<List<ScryfallSet>>(emptyList()) }
+    var isLoadingScryfallSets by remember { mutableStateOf(false) }
+    var mtgSetQuery by remember { mutableStateOf("") }
+    var mtgSelectedYear by remember { mutableStateOf("TODOS") }
+    var mtgSelectedType by remember { mutableStateOf("TODOS") }
+    var selectedMtgSetForBrowse by remember { mutableStateOf<ScryfallSet?>(null) }
+    var cardsInSelectedMtgSet by remember { mutableStateOf<List<ScryfallCard>>(emptyList()) }
+    var isLoadingMtgCards by remember { mutableStateOf(false) }
+    var setCardSearchQuery by remember { mutableStateOf("") }
+    var setCardRarityFilter by remember { mutableStateOf("TODAS") }
+    var selectedScryfallCardForModal by remember { mutableStateOf<ScryfallCard?>(null) }
+    var scryfallFeedbackBanner by remember { mutableStateOf<String?>(null) }
+
+    // Fetch MTG sets when MTG_SCRYFALL tab is opened
+    LaunchedEffect(activeTab) {
+        if (activeTab == CatalogTab.MTG_SCRYFALL && scryfallSets.isEmpty()) {
+            isLoadingScryfallSets = true
+            scryfallSets = ScryfallDataService.getSets()
+            isLoadingScryfallSets = false
+        }
+    }
 
     val allCatalogEntries = remember { RealMarketCatalog.allEntries }
     val allPopularSets = remember { SetRegistry.popularSets }
@@ -405,6 +435,374 @@ fun CatalogScreen(
                         }
                     }
                 }
+            } else if (activeTab == CatalogTab.MTG_SCRYFALL) {
+                // TAB 2: DEDICATED MTG SCRYFALL SETS & EXPANSIONS EXPLORER
+                if (selectedMtgSetForBrowse != null) {
+                    // Browsing cards within a specific Scryfall Set
+                    val set = selectedMtgSetForBrowse!!
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Set Header Bar
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF3E8FF),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC084FC))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    IconButton(
+                                        onClick = { selectedMtgSetForBrowse = null },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar aos Sets", tint = Color(0xFF6B21A8))
+                                    }
+                                    Column {
+                                        Text(
+                                            text = set.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color(0xFF581C87),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "Set: [${set.code.uppercase()}] • 📅 Ano: ${set.releaseYear} • ${set.formattedSetType}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF7E22CE)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF7E22CE)
+                                ) {
+                                    Text(
+                                        text = "${cardsInSelectedMtgSet.size} cartas",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Search and Filter within this Set
+                        OutlinedTextField(
+                            value = setCardSearchQuery,
+                            onValueChange = { setCardSearchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Buscar carta no set ${set.name}...") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (setCardSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { setCardSearchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        // Rarity filter chips within the set
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(listOf("TODAS", "Mítica", "Rara", "Incomum", "Comum")) { rarity ->
+                                FilterChip(
+                                    selected = setCardRarityFilter == rarity,
+                                    onClick = { setCardRarityFilter = rarity },
+                                    label = { Text(rarity, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+
+                        val filteredCardsInSet = remember(cardsInSelectedMtgSet, setCardSearchQuery, setCardRarityFilter) {
+                            val q = setCardSearchQuery.trim().lowercase()
+                            cardsInSelectedMtgSet.filter { card ->
+                                val matchQ = q.isBlank() ||
+                                        card.name.lowercase().contains(q) ||
+                                        card.collectorNumber.lowercase().contains(q) ||
+                                        (card.typeLine?.lowercase()?.contains(q) == true) ||
+                                        (card.oracleText?.lowercase()?.contains(q) == true)
+
+                                val matchRarity = setCardRarityFilter == "TODAS" || card.rarityPt.equals(setCardRarityFilter, ignoreCase = true)
+                                matchQ && matchRarity
+                            }
+                        }
+
+                        if (isLoadingMtgCards) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(color = Color(0xFF7E22CE))
+                                    Text("Carregando cartas do Scryfall...", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                        } else if (filteredCardsInSet.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Nenhuma carta encontrada neste set.", color = MaterialTheme.colorScheme.outline)
+                            }
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Adaptive(150.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(filteredCardsInSet, key = { it.id }) { card ->
+                                    val estPrice = card.getEstimatedPriceBrl()
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { selectedScryfallCardForModal = card },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                    ) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(150.dp)
+                                                    .background(Color(0xFF1E1E2E)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                AsyncImage(
+                                                    model = card.getHighResImage(),
+                                                    contentDescription = card.name,
+                                                    contentScale = ContentScale.Fit,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+
+                                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text(card.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Text("#${card.collectorNumber} • ${card.rarityPt}", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1)
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(currency.formatValue(estPrice), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7E22CE))
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.importScryfallCardToCollection(card) { savedItem ->
+                                                                scryfallFeedbackBanner = "Adicionado à coleção: ${savedItem.name}!"
+                                                            }
+                                                        },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.AddCircle, contentDescription = "Adicionar", tint = Color(0xFF7E22CE), modifier = Modifier.size(20.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Displaying list of Magic Sets from Scryfall
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Feedback banner
+                        if (scryfallFeedbackBanner != null) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFDCFCE7)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(scryfallFeedbackBanner ?: "", color = Color(0xFF166534), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    IconButton(onClick = { scryfallFeedbackBanner = null }, modifier = Modifier.size(18.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = "Fechar", tint = Color(0xFF166534), modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        // MTG Sets Search Bar
+                        OutlinedTextField(
+                            value = mtgSetQuery,
+                            onValueChange = { mtgSetQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Buscar sets MTG (ex: Duskmourn, Modern Horizons, Fallout, 2024...)") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (mtgSetQuery.isNotEmpty()) {
+                                    IconButton(onClick = { mtgSetQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        // Year Filters for Scryfall Sets
+                        val mtgYears = remember(scryfallSets) {
+                            listOf("TODOS") + scryfallSets.map { it.releaseYear }.distinct().sortedDescending()
+                        }
+
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(mtgYears) { year ->
+                                FilterChip(
+                                    selected = mtgSelectedYear == year,
+                                    onClick = { mtgSelectedYear = year },
+                                    label = { Text(if (year == "TODOS") "📅 Todos os Anos" else "📅 $year", fontSize = 11.sp) }
+                                )
+                            }
+                        }
+
+                        val filteredMtgSets = remember(scryfallSets, mtgSetQuery, mtgSelectedYear) {
+                            val q = mtgSetQuery.trim().lowercase()
+                            scryfallSets.filter { set ->
+                                val matchQuery = q.isBlank() ||
+                                        set.name.lowercase().contains(q) ||
+                                        set.code.lowercase().contains(q) ||
+                                        set.releaseYear.lowercase().contains(q) ||
+                                        set.formattedSetType.lowercase().contains(q)
+
+                                val matchYear = mtgSelectedYear == "TODOS" || set.releaseYear == mtgSelectedYear
+                                matchQuery && matchYear
+                            }
+                        }
+
+                        if (isLoadingScryfallSets) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(color = Color(0xFFEF4444))
+                                    Text("Carregando catálogo de sets do Scryfall...", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                        } else if (filteredMtgSets.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Nenhum set de Magic encontrado com os filtros.", color = MaterialTheme.colorScheme.outline)
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(filteredMtgSets, key = { it.id }) { set ->
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedMtgSetForBrowse = set
+                                                isLoadingMtgCards = true
+                                                coroutineScope.launch {
+                                                    cardsInSelectedMtgSet = ScryfallDataService.getCardsForSet(set.code)
+                                                    isLoadingMtgCards = false
+                                                }
+                                            },
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                                                modifier = Modifier.size(50.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = set.code.uppercase().take(4),
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 14.sp,
+                                                        color = Color(0xFFDC2626)
+                                                    )
+                                                }
+                                            }
+
+                                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(
+                                                    text = set.name,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Surface(
+                                                        color = Color(0xFF6366F1).copy(alpha = 0.15f),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "📅 ${set.releaseYear}",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF4F46E5),
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = set.formattedSetType,
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "${set.cardCount} cartas oficiais cadastradas no Scryfall",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                            }
+
+                                            Button(
+                                                onClick = {
+                                                    selectedMtgSetForBrowse = set
+                                                    isLoadingMtgCards = true
+                                                    coroutineScope.launch {
+                                                        cardsInSelectedMtgSet = ScryfallDataService.getCardsForSet(set.code)
+                                                        isLoadingMtgCards = false
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Text("Explorar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
                 // TAB 0: ALL CARDS ROSTER (Grid / List)
                 if (filteredEntries.isEmpty()) {
@@ -594,6 +992,44 @@ fun CatalogScreen(
                     releaseYear = set.year
                 )
                 itemToAddToCollection = realEntry
+            }
+        )
+    }
+
+    // Modal de Detalhes da Carta Scryfall
+    selectedScryfallCardForModal?.let { scryCard ->
+        ScryfallCardDetailDialog(
+            card = scryCard,
+            onDismiss = { selectedScryfallCardForModal = null },
+            onAddToCollection = { cardToAdd ->
+                viewModel.importScryfallCardToCollection(cardToAdd) { savedItem ->
+                    scryfallFeedbackBanner = "Carta ${savedItem.name} adicionada à coleção!"
+                }
+                selectedScryfallCardForModal = null
+            },
+            onAddToWishlist = { cardToAdd ->
+                val wishItem = Item(
+                    name = cardToAdd.name,
+                    type = "Trading Cards",
+                    subCategory = "Magic: The Gathering",
+                    collection = cardToAdd.setName,
+                    itemNumber = cardToAdd.collectorNumber,
+                    rarity = cardToAdd.rarityPt,
+                    condition = "Near Mint",
+                    estimatedValue = cardToAdd.getEstimatedPriceBrl(),
+                    purchasePrice = 0.0,
+                    quantity = 1,
+                    storageLocation = "Wishlist",
+                    notes = "Adicionado à Wishlist via Scryfall. Tipo: ${cardToAdd.typeLine ?: ""}",
+                    tags = "mtg, wishlist, scryfall",
+                    variant = if (cardToAdd.foil) "Foil" else "Normal",
+                    language = if (cardToAdd.lang == "en") "EN" else if (cardToAdd.lang == "pt") "PT-BR" else cardToAdd.lang,
+                    year = cardToAdd.releasedAt?.take(4) ?: "",
+                    imageUri = cardToAdd.getHighResImage()
+                )
+                viewModel.insertItem(wishItem)
+                scryfallFeedbackBanner = "Carta ${cardToAdd.name} adicionada à Wishlist!"
+                selectedScryfallCardForModal = null
             }
         )
     }

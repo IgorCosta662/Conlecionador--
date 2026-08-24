@@ -40,8 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.api.ScryfallCard
+import com.example.api.TcgdexCardBrief
+import com.example.api.TcgOnlineService
 import com.example.data.*
 import com.example.ui.CollectorViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 data class ItemPreset(
@@ -165,6 +170,12 @@ fun AddItemScreen(
     var showLiveSuggestions by remember { mutableStateOf(true) }
     var showCatalogSheet by remember { mutableStateOf(false) }
     var autoFilledFeedback by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Scryfall & TCGDex Online Live Search States
+    var scryfallLiveMatches by remember { mutableStateOf<List<ScryfallCard>>(emptyList()) }
+    var tcgdexLiveMatches by remember { mutableStateOf<List<TcgdexCardBrief>>(emptyList()) }
+    var isLiveSearchingApi by remember { mutableStateOf(false) }
 
     // Live search in real market catalog
     val liveMatches = remember(name, showLiveSuggestions) {
@@ -172,6 +183,93 @@ fun AddItemScreen(
             RealMarketCatalog.search(name, maxResults = 5)
         } else {
             emptyList()
+        }
+    }
+
+    // Debounced online live search with Scryfall (Magic) & TCGDex (Pokémon)
+    LaunchedEffect(name, subCategory, category, showLiveSuggestions) {
+        val q = name.trim()
+        if (!showLiveSuggestions || q.length < 2) {
+            scryfallLiveMatches = emptyList()
+            tcgdexLiveMatches = emptyList()
+            return@LaunchedEffect
+        }
+        delay(300)
+        isLiveSearchingApi = true
+        try {
+            // If Magic or Trading Cards general, search Scryfall API
+            if (subCategory == "Magic: The Gathering" || category == "Trading Cards" || q.contains("Lotus", true) || q.contains("Mox", true) || q.contains("Ring", true)) {
+                val scryResults = TcgOnlineService.searchMagicCards(q)
+                scryfallLiveMatches = scryResults.take(6)
+            } else {
+                scryfallLiveMatches = emptyList()
+            }
+
+            // If Pokémon or Trading Cards general, search TCGDex API
+            if (subCategory == "Pokémon TCG" || category == "Trading Cards") {
+                val tcgResults = TcgOnlineService.searchPokemonCards(q)
+                tcgdexLiveMatches = tcgResults.take(6)
+            } else {
+                tcgdexLiveMatches = emptyList()
+            }
+        } catch (_: Exception) {
+            // graceful fallback
+        } finally {
+            isLiveSearchingApi = false
+        }
+    }
+
+    // Apply Scryfall API Card (Magic: The Gathering)
+    fun applyScryfallCard(scryCard: ScryfallCard) {
+        name = scryCard.name
+        category = "Trading Cards"
+        subCategory = "Magic: The Gathering"
+        collection = scryCard.setName.ifBlank { "Magic: The Gathering" }
+        itemNumber = scryCard.collectorNumber
+        rarity = when (scryCard.rarity.lowercase()) {
+            "mythic" -> "Mítica Rara"
+            "rare" -> "Rara"
+            "uncommon" -> "Incomum"
+            else -> "Comum"
+        }
+        variant = if (scryCard.prices?.usdFoil != null) "Foil" else "Normal"
+        condition = "Near Mint (NM)"
+        language = "EN"
+        val estPrice = scryCard.getEstimatedPriceBrl()
+        estimatedValueText = String.format(Locale.US, "%.2f", estPrice)
+        purchasePriceText = String.format(Locale.US, "%.2f", estPrice * 0.75)
+        imageUri = scryCard.getHighResImage()
+        notes = "Carta oficial de Magic importada via Scryfall API (${scryCard.setName} #${scryCard.collectorNumber})"
+        tags = "mtg, magic, ${scryCard.name.lowercase()}, ${scryCard.setName.lowercase()}"
+        showLiveSuggestions = false
+        scryfallLiveMatches = emptyList()
+        tcgdexLiveMatches = emptyList()
+        autoFilledFeedback = "✨ Preenchido via Scryfall API: ${scryCard.name} (${scryCard.setName}) • R$ ${String.format(Locale.US, "%.2f", estPrice)}"
+    }
+
+    // Apply TCGDex API Card (Pokémon TCG)
+    fun applyTcgdexCard(brief: TcgdexCardBrief) {
+        coroutineScope.launch {
+            val detail = TcgOnlineService.getPokemonCardDetail(brief.id)
+            name = detail?.name ?: brief.name
+            category = "Trading Cards"
+            subCategory = "Pokémon TCG"
+            collection = detail?.set?.name ?: "Pokémon TCG"
+            itemNumber = detail?.localId ?: brief.localId
+            rarity = detail?.rarity ?: "Comum"
+            variant = "Normal / Holo"
+            condition = "Near Mint (NM)"
+            language = "PT-BR"
+            val estPrice = detail?.getEstimatedPriceBrl() ?: 15.0
+            estimatedValueText = String.format(Locale.US, "%.2f", estPrice)
+            purchasePriceText = String.format(Locale.US, "%.2f", estPrice * 0.75)
+            imageUri = detail?.getHighResImage() ?: brief.getHighResImage()
+            notes = "Carta oficial Pokémon importada via TCGDex API (${detail?.set?.name ?: ""} #${detail?.localId ?: brief.localId})"
+            tags = "pokemon, ${name.lowercase()}, tcg"
+            showLiveSuggestions = false
+            scryfallLiveMatches = emptyList()
+            tcgdexLiveMatches = emptyList()
+            autoFilledFeedback = "✨ Preenchido via TCGDex API: ${name} • R$ ${String.format(Locale.US, "%.2f", estPrice)}"
         }
     }
 
@@ -192,6 +290,8 @@ fun AddItemScreen(
         notes = entry.notes
         tags = entry.tags
         showLiveSuggestions = false
+        scryfallLiveMatches = emptyList()
+        tcgdexLiveMatches = emptyList()
         autoFilledFeedback = "✨ Preenchido automaticamente: ${entry.name} • Cotação Real: R$ ${String.format(Locale.US, "%.2f", entry.realMarketPriceBrl)}"
     }
 
@@ -776,16 +876,25 @@ fun AddItemScreen(
                             showLiveSuggestions = true
                         },
                         label = { Text("Nome da Carta / Item / Carrinho *") },
-                        placeholder = { Text("Ex: Charizard, Pikachu, Blue-Eyes, Skyline, Luffy...") },
+                        placeholder = { Text("Ex: Black Lotus, Sol Ring, Charizard, Pikachu, Skyline...") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_item_name"),
                         singleLine = true,
+                        leadingIcon = {
+                            if (isLiveSearchingApi) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        },
                         trailingIcon = {
                             if (name.isNotEmpty()) {
                                 IconButton(onClick = {
                                     name = ""
                                     showLiveSuggestions = false
+                                    scryfallLiveMatches = emptyList()
+                                    tcgdexLiveMatches = emptyList()
                                 }) {
                                     Icon(Icons.Default.Clear, contentDescription = "Limpar")
                                 }
@@ -793,9 +902,52 @@ fun AddItemScreen(
                         }
                     )
 
-                    // LIVE AUTOCOMPLETE DROP-DOWN / CARDS
+                    // Quick Search Helper Chips
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SuggestionChip(
+                            onClick = {
+                                showLiveSuggestions = true
+                                coroutineScope.launch {
+                                    val q = name.ifBlank { "Black Lotus" }
+                                    isLiveSearchingApi = true
+                                    scryfallLiveMatches = TcgOnlineService.searchMagicCards(q).take(8)
+                                    isLiveSearchingApi = false
+                                }
+                            },
+                            label = { Text("🔮 Buscar Magic (Scryfall)", fontSize = 11.sp) },
+                            icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF818CF8)) }
+                        )
+
+                        SuggestionChip(
+                            onClick = {
+                                showLiveSuggestions = true
+                                coroutineScope.launch {
+                                    val q = name.ifBlank { "Charizard" }
+                                    isLiveSearchingApi = true
+                                    tcgdexLiveMatches = TcgOnlineService.searchPokemonCards(q).take(8)
+                                    isLiveSearchingApi = false
+                                }
+                            },
+                            label = { Text("⚡ Buscar Pokémon (TCGDex)", fontSize = 11.sp) },
+                            icon = { Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFF59E0B)) }
+                        )
+
+                        SuggestionChip(
+                            onClick = { showCatalogSheet = true },
+                            label = { Text("📚 Catálogo Geral", fontSize = 11.sp) },
+                            icon = { Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                        )
+                    }
+
+                    // LIVE AUTOCOMPLETE DROP-DOWN / CARDS (SCRYFALL, TCGDEX, LOCAL)
+                    val hasAnyMatch = scryfallLiveMatches.isNotEmpty() || tcgdexLiveMatches.isNotEmpty() || liveMatches.isNotEmpty()
                     AnimatedVisibility(
-                        visible = liveMatches.isNotEmpty(),
+                        visible = showLiveSuggestions && hasAnyMatch,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {
@@ -814,7 +966,7 @@ fun AddItemScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -832,14 +984,14 @@ fun AddItemScreen(
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Text(
-                                            text = "Cartas Reais Encontradas (${liveMatches.size})",
+                                            text = "Cartas Encontradas para Selecionar",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                     Text(
-                                        text = "Toque para Auto-Preencher",
+                                        text = "Toque para Preencher",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.SemiBold
@@ -848,75 +1000,279 @@ fun AddItemScreen(
 
                                 Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                                liveMatches.forEach { match ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { applyRealCatalogEntry(match) },
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surface
-                                        )
+                                // 1. SCRYFALL API RESULTS (MAGIC: THE GATHERING)
+                                if (scryfallLiveMatches.isNotEmpty()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Row(
+                                        Surface(
+                                            color = Color(0xFF6366F1).copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Scryfall API • Magic (${scryfallLiveMatches.size})",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF6366F1),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    scryfallLiveMatches.forEach { scryCard ->
+                                        val estPrice = scryCard.getEstimatedPriceBrl()
+                                        Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                                                .clickable { applyScryfallCard(scryCard) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surface
+                                            )
                                         ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(width = 38.dp, height = 52.dp)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(Color(0xFF1E1E2E)),
+                                                    contentAlignment = Alignment.Center
                                                 ) {
+                                                    AsyncImage(
+                                                        model = scryCard.getHighResImage(),
+                                                        contentDescription = scryCard.name,
+                                                        contentScale = ContentScale.Fit,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = scryCard.name,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        text = "${scryCard.setName} #${scryCard.collectorNumber}",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        text = "Raridade: ${scryCard.rarity.replaceFirstChar { it.uppercase() }}",
+                                                        fontSize = 10.sp,
+                                                        color = Color(0xFF6366F1),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+
+                                                Column(
+                                                    horizontalAlignment = Alignment.End,
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Surface(
+                                                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                                    ) {
+                                                        Text(
+                                                            text = "R$ ${String.format(Locale.US, "%.2f", estPrice)}",
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 11.sp,
+                                                            color = Color(0xFF10B981),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+
+                                                    FilledTonalButton(
+                                                        onClick = { applyScryfallCard(scryCard) },
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                        modifier = Modifier.height(28.dp),
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    ) {
+                                                        Text("Selecionar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 2. TCGDEX API RESULTS (POKÉMON TCG)
+                                if (tcgdexLiveMatches.isNotEmpty()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            color = Color(0xFFEAB308).copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "TCGDex API • Pokémon (${tcgdexLiveMatches.size})",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFB45309),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    tcgdexLiveMatches.forEach { brief ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { applyTcgdexCard(brief) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surface
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(width = 38.dp, height = 52.dp)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(Color(0xFF1E1E2E)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    AsyncImage(
+                                                        model = brief.getHighResImage(),
+                                                        contentDescription = brief.name,
+                                                        contentScale = ContentScale.Fit,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = brief.name,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        text = "ID: ${brief.id} • #${brief.localId}",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1
+                                                    )
+                                                }
+
+                                                FilledTonalButton(
+                                                    onClick = { applyTcgdexCard(brief) },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                    modifier = Modifier.height(28.dp),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text("Selecionar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 3. LOCAL REAL MARKET CATALOG MATCHES
+                                if (liveMatches.isNotEmpty()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Catálogo Rápido (${liveMatches.size})",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    liveMatches.forEach { match ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { applyRealCatalogEntry(match) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surface
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(10.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
                                                     Text(
                                                         text = match.name,
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 13.sp,
                                                         color = MaterialTheme.colorScheme.onSurface
                                                     )
-                                                }
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = "${match.subCategory} • ${match.collection} #${match.itemNumber}",
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    text = "${match.rarity} • ${match.variant}",
-                                                    fontSize = 10.sp,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-
-                                            Column(
-                                                horizontalAlignment = Alignment.End,
-                                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Surface(
-                                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
-                                                ) {
+                                                    Spacer(modifier = Modifier.height(2.dp))
                                                     Text(
-                                                        text = "R$ ${String.format(Locale.US, "%.2f", match.realMarketPriceBrl)}",
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        fontSize = 12.sp,
-                                                        color = Color(0xFF10B981),
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        text = "${match.subCategory} • ${match.collection} #${match.itemNumber}",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    Text(
+                                                        text = "${match.rarity} • ${match.variant}",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.primary
                                                     )
                                                 }
 
-                                                FilledTonalButton(
-                                                    onClick = { applyRealCatalogEntry(match) },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                                    modifier = Modifier.height(28.dp),
-                                                    shape = RoundedCornerShape(6.dp)
+                                                Column(
+                                                    horizontalAlignment = Alignment.End,
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                                 ) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("Preencher", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    Surface(
+                                                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                                    ) {
+                                                        Text(
+                                                            text = "R$ ${String.format(Locale.US, "%.2f", match.realMarketPriceBrl)}",
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 12.sp,
+                                                            color = Color(0xFF10B981),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+
+                                                    FilledTonalButton(
+                                                        onClick = { applyRealCatalogEntry(match) },
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                        modifier = Modifier.height(28.dp),
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Preencher", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
                                                 }
                                             }
                                         }

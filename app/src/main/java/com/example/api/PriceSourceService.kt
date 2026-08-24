@@ -18,6 +18,18 @@ object PriceSourceRegistry {
 
     val sources = listOf(
         object : PriceSource {
+            override val sourceId = "scryfall"
+            override val displayName = "Scryfall API (Magic: The Gathering Global)"
+            override val categorySupported = listOf("Magic: The Gathering")
+            override val isOfficialRetail = true
+        },
+        object : PriceSource {
+            override val sourceId = "tcgdex"
+            override val displayName = "TCGDex SDK & API (Pokémon TCG Multi-idioma)"
+            override val categorySupported = listOf("Pokémon TCG")
+            override val isOfficialRetail = true
+        },
+        object : PriceSource {
             override val sourceId = "ligapokemon"
             override val displayName = "LigaPokémon / LigaMagic / LigaYugioh (Brasil)"
             override val categorySupported = listOf("Pokémon TCG", "Magic: The Gathering", "Yu-Gi-Oh!", "One Piece Card Game")
