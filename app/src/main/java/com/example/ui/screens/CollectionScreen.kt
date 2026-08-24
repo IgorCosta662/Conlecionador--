@@ -1,10 +1,13 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -13,24 +16,36 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.data.AppCurrency
 import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.SortOption
 import com.example.ui.ViewMode
 import com.example.ui.components.ItemCard
+
+enum class OrganizationGrouping(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    BY_CATEGORY_SUB("Categoria & Marca", Icons.Default.Category),
+    BY_SET("Coleção / Set", Icons.Default.Checklist),
+    BY_STORAGE("Local Físico / Pasta", Icons.Default.Inventory2),
+    BY_RARITY("Raridade", Icons.Default.Star),
+    FLAT("Sem Agrupamento (Plano)", Icons.Default.ViewList)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,8 +63,9 @@ fun CollectionScreen(
     val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
 
     var showFilterSheet by remember { mutableStateOf(false) }
-    var useHierarchyMode by remember { mutableStateOf(false) }
     var showRenewConfirmDialog by remember { mutableStateOf(false) }
+    var selectedGrouping by remember { mutableStateOf(OrganizationGrouping.BY_CATEGORY_SUB) }
+    var selectedSetFilter by remember { mutableStateOf("TODOS") }
 
     val totalEstValue = items.sumOf { it.totalEstimatedValue }
     val totalInvested = items.sumOf { it.totalPurchasePrice }
@@ -59,11 +75,11 @@ fun CollectionScreen(
 
     val categoryTabs = listOf(
         "TODOS" to "Todos",
-        "Trading Cards" to "TCG",
-        "Carrinhos / Diecast" to "Diecast",
-        "Action Figures" to "Figures",
-        "Moedas" to "Moedas",
-        "Outros" to "Outros"
+        "Trading Cards" to "🃏 TCG",
+        "Carrinhos / Diecast" to "🏎️ Diecast",
+        "Action Figures" to "🦸 Figures",
+        "Moedas" to "🪙 Moedas",
+        "Outros" to "📦 Outros"
     )
 
     // Dynamic Subcategories & Brands based on selected category
@@ -76,7 +92,10 @@ fun CollectionScreen(
                 "Yu-Gi-Oh!" to "Yu-Gi-Oh!",
                 "One Piece Card Game" to "One Piece",
                 "Disney Lorcana" to "Lorcana",
-                "Digimon Card Game" to "Digimon"
+                "Digimon Card Game" to "Digimon",
+                "Dragon Ball Super" to "Dragon Ball",
+                "Star Wars Unlimited" to "Star Wars",
+                "Weiss Schwarz" to "Weiss Schwarz"
             )
             "Carrinhos / Diecast" -> listOf(
                 "TODOS" to "Todas as Marcas",
@@ -87,30 +106,55 @@ fun CollectionScreen(
                 "Majorette" to "Majorette",
                 "Greenlight" to "Greenlight",
                 "Inno64" to "Inno64",
-                "Tomica" to "Tomica"
+                "Tomica" to "Tomica",
+                "Auto World" to "Auto World",
+                "Johnny Lightning" to "Johnny Lightning",
+                "M2 Machines" to "M2 Machines"
             )
             "Action Figures" -> listOf(
                 "TODOS" to "Todas",
-                "Marvel" to "Marvel / HQ",
-                "Anime / Games" to "Anime & Games",
-                "Funko" to "Funko Pop!"
+                "Marvel Legends" to "Marvel Legends",
+                "Star Wars Black Series" to "Star Wars",
+                "S.H.Figuarts" to "S.H.Figuarts",
+                "Funko Pop!" to "Funko Pop!",
+                "NECA" to "NECA",
+                "Mafex" to "Mafex",
+                "Hot Toys" to "Hot Toys",
+                "Bandai Gunpla" to "Gunpla / Gundam",
+                "Anime / Games" to "Anime & Games"
             )
             "Moedas" -> listOf(
                 "TODOS" to "Todas",
-                "Moedas do Brasil" to "Brasil",
-                "Moedas Estrangeiras" to "Estrangeiras",
-                "Cédulas" to "Cédulas"
+                "Moedas do Brasil (Real)" to "Brasil (Real)",
+                "Moedas do Brasil (Réis / Cruzeiro)" to "Históricas BR",
+                "Moedas Comemorativas" to "Comemorativas",
+                "Cédulas Históricas" to "Cédulas",
+                "Moedas Mundiais (Dólar / Euro / Yen)" to "Estrangeiras"
             )
             "Outros" -> listOf(
                 "TODOS" to "Todos",
                 "Quadrinhos & Mangás" to "Mangás & HQs",
-                "Pins & Bottons" to "Pins & Bottons"
+                "Pins & Bottons" to "Pins & Bottons",
+                "LEGO & Blocos" to "LEGO",
+                "Video Games Retrô" to "Games Retrô",
+                "Discos de Vinil & Mídia" to "Discos & Mídia"
             )
             else -> {
                 val found = items.map { it.subCategory }.filter { it.isNotBlank() }.distinct()
-                listOf("TODOS" to "Todos") + found.map { it to it }
+                listOf("TODOS" to "Todos os Submenus") + found.map { it to it }
             }
         }
+    }
+
+    // Dynamic Sets for secondary filter
+    val availableSetsInSub = remember(filteredItems) {
+        val foundSets = filteredItems.map { it.collection.trim() }.filter { it.isNotBlank() }.distinct()
+        listOf("TODOS") + foundSets
+    }
+
+    val displayFilteredItems = remember(filteredItems, selectedSetFilter) {
+        if (selectedSetFilter == "TODOS") filteredItems
+        else filteredItems.filter { it.collection.equals(selectedSetFilter, ignoreCase = true) }
     }
 
     Scaffold(
@@ -128,27 +172,35 @@ fun CollectionScreen(
                     }
                 },
                 actions = {
-                    // Quick Action: Clear all items
+                    // Universal Catalog action
                     IconButton(
-                        onClick = { showRenewConfirmDialog = true },
-                        modifier = Modifier.testTag("btn_clear_collection")
+                        onClick = { navController.navigate(Routes.CATALOG) },
+                        modifier = Modifier.testTag("btn_collection_catalog")
                     ) {
                         Icon(
-                            Icons.Default.DeleteSweep,
-                            contentDescription = "Limpar Toda a Coleção",
-                            tint = MaterialTheme.colorScheme.error
+                            imageVector = Icons.Default.MenuBook,
+                            contentDescription = "Abrir Catálogo Universal",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
 
-                    // Toggle Hierarchy / Folder Grouping Mode
+                    // Organization Menu Dialog Trigger
                     IconButton(
-                        onClick = { useHierarchyMode = !useHierarchyMode },
+                        onClick = {
+                            selectedGrouping = when (selectedGrouping) {
+                                OrganizationGrouping.BY_CATEGORY_SUB -> OrganizationGrouping.BY_SET
+                                OrganizationGrouping.BY_SET -> OrganizationGrouping.BY_STORAGE
+                                OrganizationGrouping.BY_STORAGE -> OrganizationGrouping.BY_RARITY
+                                OrganizationGrouping.BY_RARITY -> OrganizationGrouping.FLAT
+                                OrganizationGrouping.FLAT -> OrganizationGrouping.BY_CATEGORY_SUB
+                            }
+                        },
                         modifier = Modifier.testTag("btn_hierarchy_mode")
                     ) {
                         Icon(
-                            if (useHierarchyMode) Icons.Default.AccountTree else Icons.Default.FolderOpen,
-                            contentDescription = "Hierarquia",
-                            tint = if (useHierarchyMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            imageVector = selectedGrouping.icon,
+                            contentDescription = "Mudar Agrupamento: ${selectedGrouping.title}",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
 
@@ -173,7 +225,19 @@ fun CollectionScreen(
 
                     // Filter Button
                     IconButton(onClick = { showFilterSheet = true }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+                        Icon(Icons.Default.FilterList, contentDescription = "Filtros e Ordenação")
+                    }
+
+                    // Clear All action
+                    IconButton(
+                        onClick = { showRenewConfirmDialog = true },
+                        modifier = Modifier.testTag("btn_clear_collection")
+                    ) {
+                        Icon(
+                            Icons.Default.DeleteSweep,
+                            contentDescription = "Limpar Toda a Coleção",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             )
@@ -185,7 +249,7 @@ fun CollectionScreen(
                 .padding(padding)
                 .testTag("collection_screen")
         ) {
-            // Category Tabs Scrollable / Row
+            // --- 1. MENU PRINCIPAL: CATEGORIAS EM ABAS ---
             ScrollableTabRow(
                 selectedTabIndex = categoryTabs.indexOfFirst { it.first == selectedCategory }.coerceAtLeast(0),
                 edgePadding = 16.dp,
@@ -199,6 +263,7 @@ fun CollectionScreen(
                         onClick = {
                             viewModel.selectedCategoryFilter.value = key
                             viewModel.selectedSubCategoryFilter.value = "TODOS"
+                            selectedSetFilter = "TODOS"
                         },
                         text = {
                             Text(
@@ -211,8 +276,8 @@ fun CollectionScreen(
                 }
             }
 
-            // Dynamic Subcategory & Brand Chips Row
-            androidx.compose.foundation.lazy.LazyRow(
+            // --- 2. SUBMENU: MARCAS / FRANQUIAS / JOGOS DINÂMICOS ---
+            LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 6.dp),
@@ -232,6 +297,7 @@ fun CollectionScreen(
                         selected = isSubSelected,
                         onClick = {
                             viewModel.selectedSubCategoryFilter.value = subKey
+                            selectedSetFilter = "TODOS"
                         },
                         label = {
                             Text(
@@ -251,13 +317,14 @@ fun CollectionScreen(
                 }
             }
 
-            // Search Bar & Filter Indicators
+            // --- 3. BARRA DE ORGANIZAÇÃO & SUBFILTRO DE SETS ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Search Bar
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.searchQuery.value = it },
@@ -277,18 +344,42 @@ fun CollectionScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                // Results count & Sort indicator
+                // Organization Mode Selector & Summary Info Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${filteredItems.size} ${if (filteredItems.size == 1) "item exibido" else "itens exibidos"}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                    // Organization Mode Indicator pill
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.clickable {
+                            selectedGrouping = when (selectedGrouping) {
+                                OrganizationGrouping.BY_CATEGORY_SUB -> OrganizationGrouping.BY_SET
+                                OrganizationGrouping.BY_SET -> OrganizationGrouping.BY_STORAGE
+                                OrganizationGrouping.BY_STORAGE -> OrganizationGrouping.BY_RARITY
+                                OrganizationGrouping.BY_RARITY -> OrganizationGrouping.FLAT
+                                OrganizationGrouping.FLAT -> OrganizationGrouping.BY_CATEGORY_SUB
+                            }
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(selectedGrouping.icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Text(
+                                text = "Agrupado: ${selectedGrouping.title}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
 
+                    // Sort order trigger
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable { showFilterSheet = true }
@@ -302,13 +393,39 @@ fun CollectionScreen(
                         Icon(
                             Icons.Default.ArrowDropDown,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
 
+                // Sub-filter for Specific Sets/Series if available
+                if (availableSetsInSub.size > 2) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(availableSetsInSub) { setName ->
+                            val isSetSelected = selectedSetFilter == setName
+                            SuggestionChip(
+                                onClick = { selectedSetFilter = setName },
+                                label = {
+                                    Text(
+                                        text = if (setName == "TODOS") "Todos os Sets" else setName,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSetSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = if (isSetSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        }
+                    }
+                }
+
                 // Quick Navigation Chips for Pro Features
-                androidx.compose.foundation.lazy.LazyRow(
+                LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -322,7 +439,7 @@ fun CollectionScreen(
                     item {
                         AssistChip(
                             onClick = { navController.navigate(Routes.STORAGE_INVENTORY) },
-                            label = { Text("Inventário Físico", fontSize = 11.sp) },
+                            label = { Text("Pastas & Armazenamento", fontSize = 11.sp) },
                             leadingIcon = { Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(14.dp)) }
                         )
                     }
@@ -343,8 +460,8 @@ fun CollectionScreen(
                 }
             }
 
-            // Content: Either Hierarchy Groups or Normal Flat View
-            if (filteredItems.isEmpty()) {
+            // --- 4. CONTEÚDO DOS ITENS ORGANIZADOS ---
+            if (displayFilteredItems.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -367,7 +484,7 @@ fun CollectionScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "Tente alterar os filtros ou adicione novos itens pelo scanner.",
+                            "Tente alterar os filtros ou adicione novos itens pelo botão + ou Scanner.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -376,79 +493,129 @@ fun CollectionScreen(
                                 viewModel.searchQuery.value = ""
                                 viewModel.selectedCategoryFilter.value = "TODOS"
                                 viewModel.selectedSubCategoryFilter.value = "TODOS"
+                                selectedSetFilter = "TODOS"
                             }
                         ) {
                             Text("Limpar Filtros")
                         }
                     }
                 }
-            } else if (useHierarchyMode) {
-                // Hierarchical Subcategory tree view
-                HierarchicalCollectionView(
-                    items = filteredItems,
-                    currency = selectedCurrency,
-                    viewMode = currentViewMode,
-                    onItemClick = { item ->
-                        viewModel.selectedItem.value = item
-                        navController.navigate(Routes.ITEM_DETAIL)
-                    }
-                )
             } else {
-                // Standard Responsive View (Grid, List, Compact)
-                when (currentViewMode) {
-                    ViewMode.GRID -> {
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 160.dp),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(filteredItems, key = { it.id }) { item ->
-                                ItemCard(
-                                    item = item,
-                                    currency = selectedCurrency,
-                                    onClick = {
-                                        viewModel.selectedItem.value = item
-                                        navController.navigate(Routes.ITEM_DETAIL)
-                                    }
-                                )
+                when (selectedGrouping) {
+                    OrganizationGrouping.BY_CATEGORY_SUB -> {
+                        // Group by SubCategory -> Sets
+                        OrganizedGroupedView(
+                            items = displayFilteredItems,
+                            currency = selectedCurrency,
+                            viewMode = currentViewMode,
+                            groupKeyProvider = { it.subCategory.ifBlank { it.type } },
+                            subGroupKeyProvider = { it.collection.ifBlank { "Coleção Principal" } },
+                            onItemClick = { item ->
+                                viewModel.selectedItem.value = item
+                                navController.navigate(Routes.ITEM_DETAIL)
                             }
-                        }
+                        )
                     }
-                    ViewMode.LIST -> {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(filteredItems, key = { it.id }) { item ->
-                                ItemListItem(
-                                    item = item,
-                                    currency = selectedCurrency,
-                                    onClick = {
-                                        viewModel.selectedItem.value = item
-                                        navController.navigate(Routes.ITEM_DETAIL)
-                                    }
-                                )
+                    OrganizationGrouping.BY_SET -> {
+                        // Group by Set / Collection name
+                        OrganizedGroupedView(
+                            items = displayFilteredItems,
+                            currency = selectedCurrency,
+                            viewMode = currentViewMode,
+                            groupKeyProvider = { it.collection.ifBlank { "Sem Coleção Definida" } },
+                            subGroupKeyProvider = { it.subCategory.ifBlank { it.type } },
+                            onItemClick = { item ->
+                                viewModel.selectedItem.value = item
+                                navController.navigate(Routes.ITEM_DETAIL)
                             }
-                        }
+                        )
                     }
-                    ViewMode.COMPACT -> {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(filteredItems, key = { it.id }) { item ->
-                                ItemCompactRow(
-                                    item = item,
-                                    currency = selectedCurrency,
-                                    onClick = {
-                                        viewModel.selectedItem.value = item
-                                        navController.navigate(Routes.ITEM_DETAIL)
+                    OrganizationGrouping.BY_STORAGE -> {
+                        // Group by Physical Storage location (Binder, Box, Shelf)
+                        OrganizedGroupedView(
+                            items = displayFilteredItems,
+                            currency = selectedCurrency,
+                            viewMode = currentViewMode,
+                            groupKeyProvider = { it.storageLocation.ifBlank { "Não Atribuído / Sem Local" } },
+                            subGroupKeyProvider = { it.subCategory.ifBlank { it.type } },
+                            onItemClick = { item ->
+                                viewModel.selectedItem.value = item
+                                navController.navigate(Routes.ITEM_DETAIL)
+                            }
+                        )
+                    }
+                    OrganizationGrouping.BY_RARITY -> {
+                        // Group by Rarity
+                        OrganizedGroupedView(
+                            items = displayFilteredItems,
+                            currency = selectedCurrency,
+                            viewMode = currentViewMode,
+                            groupKeyProvider = { it.rarity.ifBlank { "Comum" } },
+                            subGroupKeyProvider = { it.subCategory.ifBlank { it.type } },
+                            onItemClick = { item ->
+                                viewModel.selectedItem.value = item
+                                navController.navigate(Routes.ITEM_DETAIL)
+                            }
+                        )
+                    }
+                    OrganizationGrouping.FLAT -> {
+                        // Standard flat view
+                        when (currentViewMode) {
+                            ViewMode.GRID -> {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Adaptive(minSize = 160.dp),
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(displayFilteredItems, key = { it.id }) { item ->
+                                        ItemCard(
+                                            item = item,
+                                            currency = selectedCurrency,
+                                            onClick = {
+                                                viewModel.selectedItem.value = item
+                                                navController.navigate(Routes.ITEM_DETAIL)
+                                            }
+                                        )
                                     }
-                                )
+                                }
+                            }
+                            ViewMode.LIST -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    items(displayFilteredItems, key = { it.id }) { item ->
+                                        ItemListItem(
+                                            item = item,
+                                            currency = selectedCurrency,
+                                            onClick = {
+                                                viewModel.selectedItem.value = item
+                                                navController.navigate(Routes.ITEM_DETAIL)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            ViewMode.COMPACT -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    items(displayFilteredItems, key = { it.id }) { item ->
+                                        ItemCompactRow(
+                                            item = item,
+                                            currency = selectedCurrency,
+                                            onClick = {
+                                                viewModel.selectedItem.value = item
+                                                navController.navigate(Routes.ITEM_DETAIL)
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -465,9 +632,43 @@ fun CollectionScreen(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Filtros Universais & Ordenação", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Filtros & Ordenação", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
-                Text("Ordenar Coleção Por", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Modo de Agrupamento & Organização", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OrganizationGrouping.values().forEach { grouping ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedGrouping == grouping) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            onClick = { selectedGrouping = grouping },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(grouping.icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Text(grouping.title, style = MaterialTheme.typography.bodyMedium)
+                                }
+                                RadioButton(
+                                    selected = selectedGrouping == grouping,
+                                    onClick = { selectedGrouping = grouping }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                Text("Ordenar Itens Por", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SortOption.values().forEach { opt ->
                         Surface(
@@ -493,14 +694,12 @@ fun CollectionScreen(
                     }
                 }
 
-                HorizontalDivider()
-
                 Button(
                     onClick = { showFilterSheet = false },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Concluir")
+                    Text("Aplicar")
                 }
             }
         }
@@ -535,70 +734,220 @@ fun CollectionScreen(
 }
 
 @Composable
-private fun HierarchicalCollectionView(
+private fun OrganizedGroupedView(
     items: List<Item>,
-    currency: com.example.data.AppCurrency,
+    currency: AppCurrency,
     viewMode: ViewMode,
+    groupKeyProvider: (Item) -> String,
+    subGroupKeyProvider: (Item) -> String,
     onItemClick: (Item) -> Unit
 ) {
-    // Group items by Subcategory → Collection/Set
-    val grouped = remember(items) {
-        items.groupBy { it.subCategory.ifBlank { it.type } }
-            .mapValues { (_, subItems) ->
-                subItems.groupBy { it.collection.ifBlank { "Coleção Principal" } }
+    val grouped = remember(items, groupKeyProvider, subGroupKeyProvider) {
+        items.groupBy(groupKeyProvider)
+            .mapValues { (_, groupItems) ->
+                groupItems.groupBy(subGroupKeyProvider)
             }
     }
+
+    // State for expanded/collapsed sections
+    var expandedGroups by remember(grouped) {
+        mutableStateOf(grouped.keys.associateWith { true })
+    }
+
+    val allExpanded = expandedGroups.values.all { it }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        grouped.forEach { (subCatName, setGroups) ->
-            item {
+        // Controls: Expand All / Collapse All
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${grouped.size} grupos organizados (${items.sumOf { it.quantity }} itens)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+
+                TextButton(
+                    onClick = {
+                        val newState = !allExpanded
+                        expandedGroups = grouped.keys.associateWith { newState }
+                    }
+                ) {
+                    Icon(
+                        if (allExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (allExpanded) "Recolher Todos" else "Expandir Todos", fontSize = 12.sp)
+                }
+            }
+        }
+
+        grouped.forEach { (mainGroupName, subGroups) ->
+            val isExpanded = expandedGroups[mainGroupName] ?: true
+            val groupItems = subGroups.values.flatten()
+            val groupValue = groupItems.sumOf { it.totalEstimatedValue }
+            val groupCount = groupItems.sumOf { it.quantity }
+            val groupProfit = groupItems.sumOf { it.profitOrLoss }
+
+            item(key = "group_$mainGroupName") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
                     ) {
+                        // Group Header Accordion Trigger
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    expandedGroups = expandedGroups.toMutableMap().apply {
+                                        put(mainGroupName, !isExpanded)
+                                    }
+                                },
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text(
-                                text = subCatName,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        setGroups.forEach { (setName, setCards) ->
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.SubdirectoryArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
-                                    Text(
-                                        text = "$setName (${setCards.sumOf { it.quantity }} un.)",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    setCards.forEach { item ->
-                                        ItemCompactRow(item = item, currency = currency, onClick = { onItemClick(item) })
+                                Column {
+                                    Text(
+                                        text = mainGroupName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "$groupCount ${if (groupCount == 1) "item" else "itens"} • ${currency.formatValue(groupValue)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            val arrowRotation by animateFloatAsState(
+                                targetValue = if (isExpanded) 180f else 0f,
+                                label = "arrow"
+                            )
+                            IconButton(
+                                onClick = {
+                                    expandedGroups = expandedGroups.toMutableMap().apply {
+                                        put(mainGroupName, !isExpanded)
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Expandir/Recolher",
+                                    modifier = Modifier.rotate(arrowRotation)
+                                )
+                            }
+                        }
+
+                        // Group Items Accordion Content
+                        AnimatedVisibility(visible = isExpanded) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                subGroups.forEach { (subGroupName, subCards) ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.SubdirectoryArrowRight,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = subGroupName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Text(
+                                                text = "${subCards.sumOf { it.quantity }} un. (${currency.formatValue(subCards.sumOf { it.totalEstimatedValue })})",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+
+                                        // Subgroup Cards Rendered according to ViewMode
+                                        when (viewMode) {
+                                            ViewMode.GRID, ViewMode.LIST -> {
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    subCards.forEach { item ->
+                                                        ItemListItem(
+                                                            item = item,
+                                                            currency = currency,
+                                                            onClick = { onItemClick(item) }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            ViewMode.COMPACT -> {
+                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    subCards.forEach { item ->
+                                                        ItemCompactRow(
+                                                            item = item,
+                                                            currency = currency,
+                                                            onClick = { onItemClick(item) }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -613,16 +962,20 @@ private fun HierarchicalCollectionView(
 @Composable
 private fun ItemListItem(
     item: Item,
-    currency: com.example.data.AppCurrency,
+    currency: AppCurrency,
     onClick: () -> Unit
 ) {
+    val isProfit = item.profitOrLoss >= 0
+    val profitColor = if (isProfit) Color(0xFF16A34A) else Color(0xFFDC2626)
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("item_list_row_${item.id}"),
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
         Row(
             modifier = Modifier
@@ -641,38 +994,75 @@ private fun ItemListItem(
 
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(52.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(color.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = iconVector, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+                Icon(imageVector = iconVector, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text(
-                    "${item.subCategory} • ${item.collection} ${if (item.itemNumber.isNotBlank()) "#${item.itemNumber}" else ""}",
+                    text = item.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${item.subCategory} • ${item.collection} ${if (item.itemNumber.isNotBlank()) "#${item.itemNumber}" else ""}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    "${item.rarity} | ${item.condition} ${if (item.language.isNotBlank() && item.language != "N/A") "• [${item.language}]" else ""}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${item.rarity} | ${item.condition}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+
+                    if (item.storageLocation.isNotBlank()) {
+                        Text(
+                            text = "• 📍 ${item.storageLocation}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    currency.formatValue(item.estimatedValue),
+                    text = currency.formatValue(item.estimatedValue),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                if (item.quantity > 1) {
-                    Text("x${item.quantity} un.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (item.quantity > 1) {
+                        Text("x${item.quantity}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                    if (item.purchasePrice > 0) {
+                        val sign = if (isProfit) "+" else ""
+                        Text(
+                            text = "$sign${String.format(java.util.Locale.US, "%.0f", item.profitPercentage)}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = profitColor
+                        )
+                    }
                 }
             }
         }
@@ -682,7 +1072,7 @@ private fun ItemListItem(
 @Composable
 private fun ItemCompactRow(
     item: Item,
-    currency: com.example.data.AppCurrency,
+    currency: AppCurrency,
     onClick: () -> Unit
 ) {
     Surface(
@@ -691,7 +1081,8 @@ private fun ItemCompactRow(
             .clickable { onClick() }
             .testTag("item_compact_row_${item.id}"),
         shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Row(
             modifier = Modifier
@@ -714,12 +1105,23 @@ private fun ItemCompactRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(imageVector = iconVector, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                Text(
-                    text = item.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
+                Column {
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${item.subCategory} • ${item.collection} ${if (item.storageLocation.isNotBlank()) "• 📍 " + item.storageLocation else ""}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Row(

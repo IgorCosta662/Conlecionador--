@@ -29,6 +29,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
+import com.example.util.OfficialCardImageHelper
 import com.example.ui.ViewMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -325,6 +326,14 @@ fun PokemonCardGridItem(
     currency: com.example.data.AppCurrency,
     onClick: () -> Unit
 ) {
+    val resolvedImageUrl = remember(item.imageUri, item.name, item.subCategory, item.collection, item.itemNumber) {
+        if (!item.imageUri.isNullOrBlank()) {
+            item.imageUri
+        } else {
+            OfficialCardImageHelper.getOfficialImageUrl(item.name, item.subCategory, item.collection, item.itemNumber)
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -341,12 +350,12 @@ fun PokemonCardGridItem(
                     .background(Color(0xFF1E293B)),
                 contentAlignment = Alignment.Center
             ) {
-                if (item.imageUri != null) {
+                if (!resolvedImageUrl.isNullOrBlank()) {
                     Image(
-                        painter = rememberAsyncImagePainter(item.imageUri),
+                        painter = rememberAsyncImagePainter(resolvedImageUrl),
                         contentDescription = item.name,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Fit
                     )
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {

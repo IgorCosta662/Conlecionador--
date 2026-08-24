@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,10 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.example.data.ImageStorageHelper
-import com.example.data.Item
-import com.example.data.JsonParserHelper
+import com.example.data.*
 import com.example.ui.CollectorViewModel
+import java.util.Locale
 
 data class ItemPreset(
     val title: String,
@@ -161,10 +161,43 @@ fun AddItemScreen(
     var tags by remember(editingItem) { mutableStateOf(editingItem?.tags ?: "") }
     var imageUri by remember(editingItem) { mutableStateOf(editingItem?.imageUri) }
 
+    // Live autocomplete & catalog state
+    var showLiveSuggestions by remember { mutableStateOf(true) }
+    var showCatalogSheet by remember { mutableStateOf(false) }
+    var autoFilledFeedback by remember { mutableStateOf<String?>(null) }
+
+    // Live search in real market catalog
+    val liveMatches = remember(name, showLiveSuggestions) {
+        if (showLiveSuggestions && name.trim().length >= 2) {
+            RealMarketCatalog.search(name, maxResults = 5)
+        } else {
+            emptyList()
+        }
+    }
+
+    // Fast apply real catalog entry
+    fun applyRealCatalogEntry(entry: RealCatalogEntry) {
+        name = entry.name
+        category = entry.category
+        subCategory = entry.subCategory
+        collection = entry.collection
+        itemNumber = entry.itemNumber
+        rarity = entry.rarity
+        variant = entry.variant
+        condition = entry.defaultCondition
+        language = entry.languageOrScale
+        purchasePriceText = String.format(Locale.US, "%.2f", entry.suggestedPurchasePriceBrl)
+        estimatedValueText = String.format(Locale.US, "%.2f", entry.realMarketPriceBrl)
+        storageLocation = entry.defaultStorage
+        notes = entry.notes
+        tags = entry.tags
+        showLiveSuggestions = false
+        autoFilledFeedback = "✨ Preenchido automaticamente: ${entry.name} • Cotação Real: R$ ${String.format(Locale.US, "%.2f", entry.realMarketPriceBrl)}"
+    }
+
     // Popular Presets for One-Tap Fast Fill
     val smartPresets = remember(category, subCategory) {
         listOf(
-            // TCG Presets
             ItemPreset(
                 title = "Charizard ex 151 (SIR)",
                 name = "Charizard ex (Special Illustration Rare)",
@@ -184,7 +217,7 @@ fun AddItemScreen(
             ),
             ItemPreset(
                 title = "Pikachu 151 Ilustração",
-                name = "Pikachu (Secret Illustration Rare)",
+                name = "Pikachu (Illustration Rare)",
                 category = "Trading Cards",
                 subCategory = "Pokémon TCG",
                 collection = "Scarlet & Violet 151",
@@ -197,11 +230,11 @@ fun AddItemScreen(
                 defaultEstValue = 190.0,
                 defaultStorage = "Pasta 151 - Pág 1",
                 defaultNotes = "Ilustração secreta passeando pela cidade.",
-                tags = "pokemon, pikachu, eletrico, 151"
+                tags = "pokemon, pikachu, eletrico, 151, ir"
             ),
             ItemPreset(
                 title = "The One Ring (MTG)",
-                name = "The One Ring (Foil Borderless)",
+                name = "The One Ring (Extended Borderless Foil)",
                 category = "Trading Cards",
                 subCategory = "Magic: The Gathering",
                 collection = "The Lord of the Rings: Tales of Middle-earth",
@@ -231,11 +264,11 @@ fun AddItemScreen(
                 defaultEstValue = 380.0,
                 defaultStorage = "TopLoader YuGiOh Case",
                 defaultNotes = "Gravação com logo comemorativo do 25º aniversário da franquia.",
-                tags = "yugioh, blue eyes, 25th, kaiba, dragao"
+                tags = "yugioh, blue eyes, 25th, kaiba, dragao, qcr"
             ),
             ItemPreset(
                 title = "Luffy Manga Rare (One Piece)",
-                name = "Monkey.D.Luffy (Manga Rare Alternate Art)",
+                name = "Monkey.D.Luffy (Manga Rare Alternate Art Gear 5)",
                 category = "Trading Cards",
                 subCategory = "One Piece Card Game",
                 collection = "Awakening of the New Era [OP-05]",
@@ -244,13 +277,12 @@ fun AddItemScreen(
                 variant = "Manga Alternate Art Foil",
                 condition = "Near Mint (NM)",
                 languageOrScale = "JP",
-                defaultPaid = 450.0,
-                defaultEstValue = 750.0,
-                defaultStorage = "Slab Magnético One Piece",
-                defaultNotes = "Fundo com painéis originais do mangá desenhados por Eiichiro Oda.",
-                tags = "one piece, luffy, manga rare, gear 5"
+                defaultPaid = 4500.0,
+                defaultEstValue = 7800.0,
+                defaultStorage = "Cofre Graduado / Slab Magnético",
+                defaultNotes = "Fundo com painéis originais do mangá desenhados por Eiichiro Oda. Gear 5.",
+                tags = "one piece, luffy, manga rare, gear 5, op05"
             ),
-            // Diecast Presets
             ItemPreset(
                 title = "Skyline R34 Super TH",
                 name = "Nissan Skyline GT-R (BNR34) Super Treasure Hunt",
@@ -259,126 +291,58 @@ fun AddItemScreen(
                 collection = "Mainline Factory Sealed 2025",
                 itemNumber = "#142/250",
                 rarity = "Super Treasure Hunt (STH)",
-                variant = "Spectraflame Azul + Real Riders",
+                variant = "Spectraflame Bayside Blue + Real Riders",
                 condition = "Lacrado no Blister (Mint)",
                 languageOrScale = "1:64",
-                defaultPaid = 18.0,
-                defaultEstValue = 320.0,
-                defaultStorage = "Protetor Acrílico Blister #1",
-                defaultNotes = "Pneus de borracha Real Riders e pintura Spectraflame Bayside Blue.",
-                tags = "hotwheels, sth, super treasure hunt, skyline, nissan, jdm"
-            ),
-            ItemPreset(
-                title = "Porsche 911 GT3 Boulevard",
-                name = "Porsche 911 GT3 RS (Car Culture Boulevard)",
-                category = "Carrinhos / Diecast",
-                subCategory = "Hot Wheels",
-                collection = "Car Culture: Boulevard",
-                itemNumber = "#78",
-                rarity = "Premium Metal/Metal",
-                variant = "Real Riders + Metal Base",
-                condition = "Lacrado no Blister (Mint)",
-                languageOrScale = "1:64",
-                defaultPaid = 45.0,
-                defaultEstValue = 95.0,
-                defaultStorage = "Gaveta Colecionáveis #2",
-                defaultNotes = "Base 100% metal fundido e faróis em tampografia detalhada.",
-                tags = "hotwheels, boulevard, premium, porsche, 911"
-            ),
-            ItemPreset(
-                title = "Kaido House Datsun 510 Chase",
-                name = "Kaido House Datsun 510 Pro Street (Raw Metal Chase)",
-                category = "Carrinhos / Diecast",
-                subCategory = "Kaido House",
-                collection = "Kaido House x Mini GT",
-                itemNumber = "KHMG042-CHASE",
-                rarity = "Chase 1:24",
-                variant = "Metal Cru Polido (Raw Metal Chase)",
-                condition = "Novo na Caixa Lacrada (MIB)",
-                languageOrScale = "1:64",
-                defaultPaid = 140.0,
+                defaultPaid = 150.0,
                 defaultEstValue = 380.0,
-                defaultStorage = "Vitrine Miniaturas #1",
-                defaultNotes = "Design assinado por Jun Imai. Versão secreta Chase.",
-                tags = "kaido house, minigt, chase, datsun, 510, raw"
+                defaultStorage = "Protetor Acrílico Blister #1",
+                defaultNotes = "Super Treasure Hunt oficial com pneus de borracha Real Riders e pintura Spectraflame.",
+                tags = "hotwheels, skyline, sth, super treasure hunt, nissan, jdm"
             ),
             ItemPreset(
-                title = "Matchbox Dodge D-200 Super Chase",
-                name = "Matchbox 1968 Dodge D-200 4x4 (Super Chase)",
-                category = "Carrinhos / Diecast",
-                subCategory = "Matchbox",
-                collection = "Matchbox Super Chase 2024",
-                itemNumber = "#04/100",
-                rarity = "Super Chase",
-                variant = "Pneus Borracha + Pintura Especial",
-                condition = "Lacrado no Blister",
-                languageOrScale = "1:64",
-                defaultPaid = 16.0,
-                defaultEstValue = 180.0,
-                defaultStorage = "Protetor Acrílico #3",
-                defaultNotes = "Rara versão Super Chase de linha da Matchbox.",
-                tags = "matchbox, super chase, dodge, 4x4"
-            ),
-            // Action Figures & Moedas
-            ItemPreset(
-                title = "Homem-Aranha Retro Marvel",
-                name = "Homem-Aranha (Marvel Legends Retro Toy Biz)",
-                category = "Action Figures",
-                subCategory = "Marvel Legends",
-                collection = "Marvel Legends Retro Card",
-                itemNumber = "F0228",
-                rarity = "Edição Especial Retro",
-                variant = "Cartela Vintage Toy Biz",
-                condition = "Lacrado na Cartela (Mint)",
-                languageOrScale = "1:12 (6 polegadas)",
-                defaultPaid = 160.0,
-                defaultEstValue = 260.0,
-                defaultStorage = "Nicho Parede Quarto",
-                defaultNotes = "Mais de 30 pontos de articulação com mãos extras e teias intercambiáveis.",
-                tags = "marvel, spiderman, hasbro, legends, retro"
-            ),
-            ItemPreset(
-                title = "Funko Luffy Gear 5 Chase",
-                name = "Funko Pop! Luffy Gear 5 #1607 (Glow in the Dark Chase)",
-                category = "Action Figures",
-                subCategory = "Funko Pop!",
-                collection = "One Piece Animation",
-                itemNumber = "#1607 Chase",
-                rarity = "Chase 1:6",
-                variant = "Brilha no Escuro (GITD)",
-                condition = "Novo com Protetor Rígido UV",
-                languageOrScale = "4 polegadas",
-                defaultPaid = 190.0,
-                defaultEstValue = 340.0,
-                defaultStorage = "Estante Funko Sala",
-                defaultNotes = "Selo Chase oficial da Funko com protetor Pop Shield UV.",
-                tags = "funko, pop, one piece, luffy, gear 5, gitd, chase"
-            ),
-            ItemPreset(
-                title = "Moeda 1 Real 50 Anos BCB",
-                name = "Moeda 1 Real 50 Anos Banco Central (BCB)",
+                title = "Moeda 1 Real DH 1998",
+                name = "Moeda 1 Real Declaração Universal dos Direitos Humanos 1998",
                 category = "Moedas",
                 subCategory = "Moedas do Brasil (Real)",
                 collection = "Moedas Comemorativas do Real",
-                itemNumber = "BCB-50-2015",
-                rarity = "Comemorativa Escassa",
-                variant = "Bimetálica Flor de Cunho",
+                itemNumber = "DH-1998",
+                rarity = "Raríssima (Tiragem 600 mil)",
+                variant = "Cuproníquel / Alpaca",
                 condition = "Flor de Cunho (FC)",
-                languageOrScale = "Brasil - 2015",
-                defaultPaid = 15.0,
-                defaultEstValue = 65.0,
-                defaultStorage = "Cápsula Acrílica / Álbum Numismático",
-                defaultNotes = "Tiragem de 50 milhões de unidades em estado de conservação impecável Flor de Cunho.",
-                tags = "moeda, real, bcb, 50 anos, flor de cunho"
+                languageOrScale = "Brasil - 1998",
+                defaultPaid = 250.0,
+                defaultEstValue = 450.0,
+                defaultStorage = "Cápsula Acrílica Selada",
+                defaultNotes = "A moeda mais rara da primeira família do Real (tiragem de apenas 600 mil unidades).",
+                tags = "moeda, real, direitos humanos, 1998, rara, flor de cunho"
             )
         )
     }
 
     // Quick Suggestions Chips for Fields
+    val collectionSuggestions = remember(category, subCategory) {
+        when {
+            subCategory.contains("Pokémon", true) -> listOf("Scarlet & Violet 151", "Paldea Evolved", "Crown Zenith", "Twilight Masquerade", "Obsidian Flames", "Base Set 1999", "Evolving Skies", "Surging Sparks")
+            subCategory.contains("Magic", true) -> listOf("Modern Horizons 3", "Lord of the Rings: Tales of Middle-earth", "Bloomburrow", "Commander Legends", "Dominaria United", "Kamigawa Neon Dynasty")
+            subCategory.contains("Yu-Gi-Oh", true) -> listOf("25th Anniversary Rarity Collection", "Phantom Nightmare", "Age of Overlord", "Legend of Blue Eyes", "Battles of Legend")
+            subCategory.contains("One Piece", true) -> listOf("Awakening of the New Era [OP-05]", "Romance Dawn [OP-01]", "Wings of the Captain [OP-06]", "500 Years in the Future [OP-07]")
+            subCategory.contains("Lorcana", true) -> listOf("The First Chapter", "Rise of the Floodborn", "Into the Inklands", "Ursula's Return")
+            subCategory.contains("Hot Wheels", true) -> listOf("Mainline 2025", "Car Culture: Boulevard", "Fast & Furious", "Team Transport", "Red Line Club (RLC)", "Premium Retro Entertainment")
+            subCategory.contains("Matchbox", true) -> listOf("Mainline Matchbox", "Matchbox Moving Parts", "Super Chase", "Collectors Series 70th")
+            subCategory.contains("Mini GT", true) -> listOf("Mini GT Regular", "Kaido House x Mini GT", "MiJo Exclusives")
+            subCategory.contains("Marvel", true) -> listOf("Marvel Legends Retro Card", "Marvel Studios Infinity Saga", "Marvel Comics 85th", "Spider-Man Retro")
+            subCategory.contains("Star Wars", true) -> listOf("Black Series 6\"", "Black Series 40th Anniversary", "Archive Collection", "Vintage Collection")
+            subCategory.contains("Funko", true) -> listOf("Animation", "Marvel", "Star Wars", "Television", "Movies", "Games")
+            subCategory.contains("Brasil", true) -> listOf("Moedas do Real (1994-2025)", "Comemorativas do Real", "Réis Império", "Cruzeiro / Cruzado")
+            else -> listOf("Série 2025", "Edição Especial", "Coleção Principal", "Vintage 90s")
+        }
+    }
+
     val raritySuggestions = remember(category) {
         when (category) {
-            "Trading Cards" -> listOf("Comum", "Incomum", "Rara Holo", "Ultra Rara", "Secret Rare", "Special Art (SIR)", "Illustration Rare", "Mítica Rara", "Quarter Century", "Manga Rare")
-            "Carrinhos / Diecast" -> listOf("Básico / Mainline", "Super Treasure Hunt (STH)", "Treasure Hunt (TH)", "Premium Metal/Metal", "Red Line Club (RLC)", "Chase 1:24 / Raw", "Super Chase", "Edição Limitada")
+            "Trading Cards" -> listOf("Comum", "Incomum", "Rara Holo", "Ultra Rara", "Secret Rare", "Special Art (SIR)", "Illustration Rare", "Mítica Rara", "Quarter Century", "Manga Rare", "Enchanted")
+            "Carrinhos / Diecast" -> listOf("Básico / Mainline", "Super Treasure Hunt (STH)", "Treasure Hunt (TH)", "Premium Metal/Metal", "Red Line Club (RLC)", "Chase 1:24 / Raw", "Super Chase")
             "Action Figures" -> listOf("Regular", "Exclusivo / SDCC", "Chase 1:6", "Edição Especial", "Glow in the Dark", "Importação Japonesa")
             "Moedas" -> listOf("Comum de Circulação", "Comemorativa", "Flor de Cunho (FC)", "Soberba (SOB)", "Muito Bem Conservada (MBC)", "Prata / Ouro")
             else -> listOf("Comum", "Edição Especial", "Limitado", "Colecionador", "Raro")
@@ -400,7 +364,7 @@ fun AddItemScreen(
     }
 
     val storageSuggestions = listOf(
-        "Pasta 1 - Pág 1",
+        "Pasta 151 - Pág 1 (TopLoader)",
         "Pasta Principal - Pág 2",
         "TopLoader Case",
         "Slab Acrílico Graduado",
@@ -451,11 +415,13 @@ fun AddItemScreen(
         variant = preset.variant
         condition = preset.condition
         language = preset.languageOrScale
-        purchasePriceText = String.format("%.2f", preset.defaultPaid).replace(",", ".")
-        estimatedValueText = String.format("%.2f", preset.defaultEstValue).replace(",", ".")
+        purchasePriceText = String.format(Locale.US, "%.2f", preset.defaultPaid)
+        estimatedValueText = String.format(Locale.US, "%.2f", preset.defaultEstValue)
         storageLocation = preset.defaultStorage
         notes = preset.defaultNotes
         tags = preset.tags
+        showLiveSuggestions = false
+        autoFilledFeedback = "✨ Preenchido: ${preset.name} (R$ ${String.format(Locale.US, "%.2f", preset.defaultEstValue)})"
     }
 
     Scaffold(
@@ -469,7 +435,7 @@ fun AddItemScreen(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "Menus, Submenus & Preenchimento Inteligente",
+                            text = "Auto-Preenchimento & Cotações Reais",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -481,6 +447,18 @@ fun AddItemScreen(
                         onNavigateBack()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { showCatalogSheet = true },
+                        modifier = Modifier.testTag("btn_open_real_catalog")
+                    ) {
+                        Icon(
+                            Icons.Default.ManageSearch,
+                            contentDescription = "Buscar Catálogo Real",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )
@@ -494,18 +472,58 @@ fun AddItemScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- 1. MODELOS DE PREENCHIMENTO RÁPIDO (ONE-TAP PRESETS) ---
+            // --- FEEDBACK DE AUTO-PREENCHIMENTO ---
+            if (autoFilledFeedback != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF10B981).copy(alpha = 0.15f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981))
+                                Text(
+                                    text = autoFilledFeedback!!,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            IconButton(
+                                onClick = { autoFilledFeedback = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Fechar", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- 1. BANNER DE AUTO-PREENCHIMENTO & CATÁLOGO REAL ---
             if (!isEditMode) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                         ),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                         )
                     ) {
                         Column(
@@ -524,31 +542,34 @@ fun AddItemScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Icon(
-                                        Icons.Default.AutoAwesome,
+                                        Icons.Default.Bolt,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                     Text(
-                                        text = "Modelos & Preenchimento Rápido",
+                                        text = "Busca Rápida de Cartas & Preços Reais",
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.titleSmall
                                     )
                                 }
-                                Text(
-                                    text = "1 Toque",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                TextButton(
+                                    onClick = { showCatalogSheet = true },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Ver Todas", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
 
                             Text(
-                                text = "Clique em um modelo para preencher todos os dados instantaneamente:",
+                                text = "Digite o nome da carta ou escolha um modelo abaixo para preencher TODOS os dados e o valor de mercado real em 1 toque:",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
+                            // Quick trending chip carousel
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -557,20 +578,17 @@ fun AddItemScreen(
                                     ElevatedSuggestionChip(
                                         onClick = { applyPreset(preset) },
                                         label = {
-                                            Text(
-                                                preset.title,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
+                                            Column {
+                                                Text(preset.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text("R$ ${String.format(Locale.US, "%.2f", preset.defaultEstValue)}", fontSize = 10.sp, color = Color(0xFF10B981), fontWeight = FontWeight.SemiBold)
+                                            }
                                         },
                                         icon = {
                                             Icon(
-                                                if (preset.category == "Trading Cards") Icons.Default.Style
-                                                else if (preset.category == "Carrinhos / Diecast") Icons.Default.DirectionsCar
-                                                else if (preset.category == "Action Figures") Icons.Default.SmartToy
-                                                else Icons.Default.MonetizationOn,
+                                                Icons.Default.AutoFixHigh,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(14.dp)
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     )
@@ -581,48 +599,53 @@ fun AddItemScreen(
                 }
             }
 
-            // --- 2. MENU PRINCIPAL: SELEÇÃO DE CATEGORIA ---
+            // --- 2. MENU PRINCIPAL: CATEGORIA DO COLECIONÁVEL ---
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "1. Menu Principal: Categoria do Item *",
+                        text = "1. Menu Principal: Tipo de Colecionável *",
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleSmall
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
                     )
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(mainCategories) { (catKey, catLabel, catColor) ->
+                        mainCategories.forEach { (catKey, catLabel, catColor) ->
                             val isSelected = category == catKey
                             FilterChip(
                                 selected = isSelected,
                                 onClick = {
                                     category = catKey
-                                    // Reset subcategory to first available in new category
-                                    val newSubs = when (catKey) {
+                                    // Set default subcategory for the category
+                                    subCategory = when (catKey) {
                                         "Trading Cards" -> "Pokémon TCG"
                                         "Carrinhos / Diecast" -> "Hot Wheels"
                                         "Action Figures" -> "Marvel Legends"
                                         "Moedas" -> "Moedas do Brasil (Real)"
                                         else -> "Quadrinhos & Mangás"
                                     }
-                                    subCategory = newSubs
-                                    if (catKey == "Carrinhos / Diecast") {
-                                        language = "1:64"
-                                    } else if (catKey == "Trading Cards") {
-                                        language = "PT-BR"
-                                    }
+                                    if (catKey == "Carrinhos / Diecast") language = "1:64"
                                 },
                                 label = {
                                     Text(
-                                        catLabel,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        text = catLabel,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 13.sp
                                     )
                                 },
                                 leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                    {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 } else null,
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = catColor.copy(alpha = 0.2f),
@@ -634,140 +657,87 @@ fun AddItemScreen(
                 }
             }
 
-            // --- 3. SUBMENU: JOGO / MARCA / FABRICANTE ---
+            // --- 3. SUBMENU: FRANQUIA / MARCA / LINHA ---
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "2. Submenu: Jogo / Marca / Fabricante *",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Text(
-                            text = "${subCategoryOptions.size} opções",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Text(
+                        text = "2. Submenu: Jogo / Marca / Série *",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(subCategoryOptions) { subOption ->
-                            val isSelected = subCategory.equals(subOption, ignoreCase = true)
+                        items(subCategoryOptions) { subCat ->
+                            val isSelected = subCategory == subCat
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { subCategory = subOption },
+                                onClick = { subCategory = subCat },
                                 label = {
                                     Text(
-                                        subOption,
+                                        text = subCat,
                                         fontSize = 12.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                     )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null
+                                }
                             )
                         }
                     }
-
-                    // Campo de texto livre caso queira digitar subcategoria customizada
-                    OutlinedTextField(
-                        value = subCategory,
-                        onValueChange = { subCategory = it },
-                        label = { Text("Subcategoria Personalizada") },
-                        placeholder = { Text("Ex: Pokémon TCG, Hot Wheels, Matchbox...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_subcategory"),
-                        singleLine = true
-                    )
                 }
             }
 
-            // --- 4. FOTO DO ITEM ---
+            // --- 4. FOTO PRINCIPAL DO ITEM ---
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        if (!imageUri.isNullOrBlank()) {
+                        Text(
+                            text = "Foto do Item",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+
+                        if (imageUri != null) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(180.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.Black.copy(alpha = 0.3f)),
-                                contentAlignment = Alignment.Center
                             ) {
                                 AsyncImage(
                                     model = imageUri,
                                     contentDescription = "Foto do Item",
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Fit
                                 )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedButton(
-                                    onClick = { cameraLauncher.launch(null) },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Trocar", fontSize = 12.sp)
-                                }
-                                OutlinedButton(
-                                    onClick = { galleryLauncher.launch("image/*") },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Galeria", fontSize = 12.sp)
-                                }
-                                TextButton(
+                                IconButton(
                                     onClick = { imageUri = null },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(6.dp)
+                                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                        .size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remover")
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remover",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         } else {
-                            Icon(
-                                imageVector = Icons.Default.AddPhotoAlternate,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Adicionar Foto ou Card",
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -796,43 +766,206 @@ fun AddItemScreen(
                 }
             }
 
-            // --- 5. NOME PRINCIPAL DO ITEM ---
+            // --- 5. NOME PRINCIPAL DO ITEM + AUTOCOMPLETAÇÃO INTELIGENTE EM TEMPO REAL ---
             item {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Nome do Item / Carta / Carrinho *") },
-                    placeholder = { Text("Ex: Charizard ex, Nissan Skyline GT-R BNR34...") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_item_name"),
-                    singleLine = true
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = {
+                            name = it
+                            showLiveSuggestions = true
+                        },
+                        label = { Text("Nome da Carta / Item / Carrinho *") },
+                        placeholder = { Text("Ex: Charizard, Pikachu, Blue-Eyes, Skyline, Luffy...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_item_name"),
+                        singleLine = true,
+                        trailingIcon = {
+                            if (name.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    name = ""
+                                    showLiveSuggestions = false
+                                }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                                }
+                            }
+                        }
+                    )
+
+                    // LIVE AUTOCOMPLETE DROP-DOWN / CARDS
+                    AnimatedVisibility(
+                        visible = liveMatches.isNotEmpty(),
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.5.dp,
+                                MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Bolt,
+                                            contentDescription = null,
+                                            tint = Color(0xFFF59E0B),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = "Cartas Reais Encontradas (${liveMatches.size})",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Text(
+                                        text = "Toque para Auto-Preencher",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                                liveMatches.forEach { match ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { applyRealCatalogEntry(match) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surface
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = match.name,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${match.subCategory} • ${match.collection} #${match.itemNumber}",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = "${match.rarity} • ${match.variant}",
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+
+                                            Column(
+                                                horizontalAlignment = Alignment.End,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Surface(
+                                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                                ) {
+                                                    Text(
+                                                        text = "R$ ${String.format(Locale.US, "%.2f", match.realMarketPriceBrl)}",
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFF10B981),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+
+                                                FilledTonalButton(
+                                                    onClick = { applyRealCatalogEntry(match) },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                    modifier = Modifier.height(28.dp),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Preencher", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
-            // --- 6. COLEÇÃO & NÚMERO ---
+            // --- 6. COLEÇÃO & NÚMERO COM SUGESTÕES ---
             item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = collection,
-                        onValueChange = { collection = it },
-                        label = { Text("Coleção / Série") },
-                        placeholder = { Text("Ex: 151, Mainline 2025") },
-                        modifier = Modifier
-                            .weight(1.2f)
-                            .testTag("input_collection"),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = itemNumber,
-                        onValueChange = { itemNumber = it },
-                        label = { Text("Número / Código") },
-                        placeholder = { Text("#199/165") },
-                        modifier = Modifier
-                            .weight(0.8f)
-                            .testTag("input_number"),
-                        singleLine = true
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = collection,
+                            onValueChange = { collection = it },
+                            label = { Text("Coleção / Série / Set") },
+                            placeholder = { Text("Ex: 151, Mainline 2025") },
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .testTag("input_collection"),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = itemNumber,
+                            onValueChange = { itemNumber = it },
+                            label = { Text("Número / Código") },
+                            placeholder = { Text("#199/165") },
+                            modifier = Modifier
+                                .weight(0.8f)
+                                .testTag("input_number"),
+                            singleLine = true
+                        )
+                    }
+
+                    // Dynamic collection set suggestions
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(collectionSuggestions) { set ->
+                            SuggestionChip(
+                                onClick = { collection = set },
+                                label = { Text(set, fontSize = 11.sp) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -876,7 +1009,7 @@ fun AddItemScreen(
                 }
             }
 
-            // --- 8. CONDIÇÃO & IDIOMA / ESCALA COM CHIPS SUGESTIVOS ---
+            // --- 8. ESTADO DE CONSERVAÇÃO & IDIOMA/ESCALA ---
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -885,30 +1018,31 @@ fun AddItemScreen(
                             onValueChange = { condition = it },
                             label = { Text("Estado de Conservação") },
                             modifier = Modifier
-                                .weight(1.1f)
+                                .weight(1.2f)
                                 .testTag("input_condition"),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = language,
                             onValueChange = { language = it },
-                            label = { Text("Idioma / Escala") },
+                            label = { Text(if (category == "Carrinhos / Diecast") "Escala" else "Idioma") },
+                            placeholder = { Text(if (category == "Carrinhos / Diecast") "1:64" else "PT-BR") },
                             modifier = Modifier
-                                .weight(0.9f)
+                                .weight(0.8f)
                                 .testTag("input_language"),
                             singleLine = true
                         )
                     }
 
-                    // Sugestões de condição
+                    // Sugestões de condição em chips rápidos
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(conditionSuggestions) { c ->
+                        items(conditionSuggestions) { cond ->
                             SuggestionChip(
-                                onClick = { condition = c },
-                                label = { Text(c, fontSize = 11.sp) }
+                                onClick = { condition = cond },
+                                label = { Text(cond, fontSize = 11.sp) }
                             )
                         }
                     }
@@ -951,7 +1085,7 @@ fun AddItemScreen(
                         .fillMaxWidth()
                         .testTag("input_estimated_value"),
                     singleLine = true,
-                    supportingText = { Text("Cotação média atual em marketplaces especializados") }
+                    supportingText = { Text("Cotação média real atual em marketplaces especializados (Liga, TCGPlayer, eBay, ML)") }
                 )
             }
 
@@ -1090,6 +1224,176 @@ fun AddItemScreen(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: CATÁLOGO GERAL DE CARTAS & COTAÇÕES REAIS ---
+    if (showCatalogSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCatalogSheet = false },
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            var sheetSearchQuery by remember { mutableStateOf("") }
+            var sheetSelectedCategory by remember { mutableStateOf("Todas") }
+
+            val sheetCategories = listOf("Todas", "Pokémon TCG", "Magic", "Yu-Gi-Oh", "One Piece", "Lorcana", "Hot Wheels", "Moedas")
+
+            val filteredEntries = remember(sheetSearchQuery, sheetSelectedCategory) {
+                RealMarketCatalog.allEntries.filter { entry ->
+                    val matchesCategory = when (sheetSelectedCategory) {
+                        "Todas" -> true
+                        "Pokémon TCG" -> entry.subCategory.contains("Pokémon", ignoreCase = true)
+                        "Magic" -> entry.subCategory.contains("Magic", ignoreCase = true)
+                        "Yu-Gi-Oh" -> entry.subCategory.contains("Yu-Gi-Oh", ignoreCase = true)
+                        "One Piece" -> entry.subCategory.contains("One Piece", ignoreCase = true)
+                        "Lorcana" -> entry.subCategory.contains("Lorcana", ignoreCase = true)
+                        "Hot Wheels" -> entry.subCategory.contains("Hot Wheels", ignoreCase = true) || entry.category.contains("Diecast", ignoreCase = true)
+                        "Moedas" -> entry.category.contains("Moedas", ignoreCase = true)
+                        else -> true
+                    }
+                    val matchesQuery = sheetSearchQuery.isBlank() ||
+                            entry.name.contains(sheetSearchQuery, ignoreCase = true) ||
+                            entry.collection.contains(sheetSearchQuery, ignoreCase = true) ||
+                            entry.itemNumber.contains(sheetSearchQuery, ignoreCase = true) ||
+                            entry.tags.contains(sheetSearchQuery, ignoreCase = true)
+
+                    matchesCategory && matchesQuery
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Catálogo com Cotações Reais",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "${filteredEntries.size} itens autênticos verificados",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { showCatalogSheet = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Fechar")
+                    }
+                }
+
+                // Search Bar
+                OutlinedTextField(
+                    value = sheetSearchQuery,
+                    onValueChange = { sheetSearchQuery = it },
+                    placeholder = { Text("Buscar por nome, coleção, número (#199/165)...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (sheetSearchQuery.isNotEmpty()) {
+                            IconButton(onClick = { sheetSearchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                // Category Chips
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(sheetCategories) { cat ->
+                        FilterChip(
+                            selected = sheetSelectedCategory == cat,
+                            onClick = { sheetSelectedCategory = cat },
+                            label = { Text(cat, fontSize = 12.sp) }
+                        )
+                    }
+                }
+
+                // List of Real Catalog Entries
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(filteredEntries) { entry ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    applyRealCatalogEntry(entry)
+                                    showCatalogSheet = false
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = entry.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "${entry.subCategory} • ${entry.collection} (${entry.itemNumber})",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${entry.rarity} • ${entry.variant}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Surface(
+                                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981))
+                                    ) {
+                                        Text(
+                                            text = "R$ ${String.format(Locale.US, "%.2f", entry.realMarketPriceBrl)}",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF10B981),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Cotação Real",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

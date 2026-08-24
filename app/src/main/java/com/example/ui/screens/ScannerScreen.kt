@@ -192,6 +192,39 @@ fun ScannerScreen(
                                 }
                             }
                         }
+
+                        // Category Focus Selector (Auto, Pokémon, Magic, Yu-Gi-Oh, Hot Wheels)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Foco IA:",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                val options = listOf(
+                                    "" to "Auto (IA)",
+                                    "Magic: The Gathering MTG" to "Magic MTG",
+                                    "Pokémon TCG" to "Pokémon",
+                                    "Yu-Gi-Oh!" to "Yu-Gi-Oh!",
+                                    "One Piece Card Game" to "One Piece",
+                                    "Hot Wheels Diecast" to "Hot Wheels"
+                                )
+                                items(options) { (hintKey, label) ->
+                                    FilterChip(
+                                        selected = contextHintText == hintKey,
+                                        onClick = {
+                                            contextHintText = if (contextHintText == hintKey) "" else hintKey
+                                        },
+                                        label = { Text(label, fontSize = 11.sp, fontWeight = if (contextHintText == hintKey) FontWeight.Bold else FontWeight.Normal) }
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     // Scanner Viewfinder with Card / Diecast Framing Target

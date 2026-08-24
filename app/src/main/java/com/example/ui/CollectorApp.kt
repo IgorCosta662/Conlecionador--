@@ -1,13 +1,17 @@
 package com.example.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -31,6 +35,7 @@ object Routes {
     const val AI_ASSISTANT = "ai_assistant"
     const val PRICE_ALERTS = "price_alerts"
     const val SECURITY_BACKUP = "security_backup"
+    const val CATALOG = "catalog"
 
     // Dedicated Category & Stats Hubs
     const val TCG_HUB = "tcg_hub"
@@ -60,6 +65,21 @@ fun CollectorApp(viewModel: CollectorViewModel) {
         Routes.STATISTICS
     )
 
+    fun navigateToTab(targetRoute: String) {
+        if (targetRoute == Routes.SCANNER) {
+            viewModel.resetScanState()
+        }
+        if (currentRoute != targetRoute) {
+            navController.navigate(targetRoute) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
@@ -71,15 +91,8 @@ fun CollectorApp(viewModel: CollectorViewModel) {
                         icon = { Icon(Icons.Default.Home, contentDescription = "Início") },
                         label = { Text("Início") },
                         selected = currentRoute == Routes.DASHBOARD,
-                        onClick = {
-                            if (currentRoute != Routes.DASHBOARD) {
-                                navController.navigate(Routes.DASHBOARD) {
-                                    popUpTo(Routes.DASHBOARD) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        },
+                        alwaysShowLabel = true,
+                        onClick = { navigateToTab(Routes.DASHBOARD) },
                         modifier = Modifier.testTag("nav_dashboard")
                     )
 
@@ -87,26 +100,32 @@ fun CollectorApp(viewModel: CollectorViewModel) {
                         icon = { Icon(Icons.Default.FormatListBulleted, contentDescription = "Coleção") },
                         label = { Text("Coleção") },
                         selected = currentRoute == Routes.COLLECTION,
-                        onClick = {
-                            if (currentRoute != Routes.COLLECTION) {
-                                navController.navigate(Routes.COLLECTION) {
-                                    popUpTo(Routes.DASHBOARD) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        },
+                        alwaysShowLabel = true,
+                        onClick = { navigateToTab(Routes.COLLECTION) },
                         modifier = Modifier.testTag("nav_collection")
                     )
 
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.CameraAlt, contentDescription = "Escanear") },
+                        icon = {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (currentRoute == Routes.SCANNER) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.CameraAlt,
+                                        contentDescription = "Escanear",
+                                        tint = if (currentRoute == Routes.SCANNER) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        },
                         label = { Text("Scanner") },
                         selected = currentRoute == Routes.SCANNER,
-                        onClick = {
-                            viewModel.resetScanState()
-                            navController.navigate(Routes.SCANNER)
-                        },
+                        alwaysShowLabel = true,
+                        onClick = { navigateToTab(Routes.SCANNER) },
                         modifier = Modifier.testTag("nav_scanner")
                     )
 
@@ -114,15 +133,8 @@ fun CollectorApp(viewModel: CollectorViewModel) {
                         icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Mercado") },
                         label = { Text("Mercado") },
                         selected = currentRoute == Routes.MARKETPLACE,
-                        onClick = {
-                            if (currentRoute != Routes.MARKETPLACE) {
-                                navController.navigate(Routes.MARKETPLACE) {
-                                    popUpTo(Routes.DASHBOARD) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        },
+                        alwaysShowLabel = true,
+                        onClick = { navigateToTab(Routes.MARKETPLACE) },
                         modifier = Modifier.testTag("nav_marketplace")
                     )
 
@@ -130,15 +142,8 @@ fun CollectorApp(viewModel: CollectorViewModel) {
                         icon = { Icon(Icons.Default.BarChart, contentDescription = "Estatísticas") },
                         label = { Text("Estatísticas") },
                         selected = currentRoute == Routes.STATISTICS,
-                        onClick = {
-                            if (currentRoute != Routes.STATISTICS) {
-                                navController.navigate(Routes.STATISTICS) {
-                                    popUpTo(Routes.DASHBOARD) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        },
+                        alwaysShowLabel = true,
+                        onClick = { navigateToTab(Routes.STATISTICS) },
                         modifier = Modifier.testTag("nav_statistics")
                     )
                 }
@@ -200,6 +205,9 @@ fun CollectorApp(viewModel: CollectorViewModel) {
             }
             composable(Routes.SECURITY_BACKUP) {
                 SecurityBackupScreen(viewModel, navController)
+            }
+            composable(Routes.CATALOG) {
+                CatalogScreen(viewModel, navController)
             }
 
             // Category Specific Pages

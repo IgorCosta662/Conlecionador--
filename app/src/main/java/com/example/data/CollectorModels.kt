@@ -78,8 +78,10 @@ data class PriceAlert(
 data class CollectibleSet(
     val id: String,
     val name: String,
-    val franchise: String, // "Pokémon TCG", "Magic: The Gathering", "Yu-Gi-Oh!", "Hot Wheels"
+    val code: String = "", // e.g. "30C", "30C-C", "MEM", "M6", "ASC", "C9.5M", "SV3pt5"
+    val franchise: String, // "Pokémon TCG", "Magic: The Gathering", "Yu-Gi-Oh!", "One Piece Card Game", "Hot Wheels", "Disney Lorcana", "Moedas"
     val year: String,
+    val era: String = "", // e.g. "2026 / 30th Celebration & Mega Era", "Scarlet & Violet", "Sword & Shield", "Sun & Moon", "Vintage"
     val totalItems: Int,
     val iconCategory: String,
     val bannerColor: Long,
@@ -93,7 +95,9 @@ data class SetCardItem(
     val rarity: String,
     val variant: String = "Normal",
     val estimatedPriceBrl: Double,
-    val language: String = "PT-BR"
+    val language: String = "PT-BR",
+    val patternVariant: String = "Standard", // "Master Ball Pattern", "Poké Ball Pattern", "Team Rocket Pattern", "Energy Symbol Pattern"
+    val setCode: String = ""
 )
 
 // ----------------------------------------------------

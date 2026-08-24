@@ -155,13 +155,6 @@ class CollectorViewModel(
     val onlyFavoritesFilter = MutableStateFlow(false)
     val sortOption = MutableStateFlow(SortOption.RECENT)
 
-    init {
-        // Start with clean, empty collection as requested
-        viewModelScope.launch {
-            repository.deleteAllItems()
-        }
-    }
-
     // --- Selected item for Details / Editing ---
     val selectedItem = MutableStateFlow<Item?>(null)
     val isEditingItem = MutableStateFlow<Item?>(null)

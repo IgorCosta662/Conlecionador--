@@ -38,6 +38,7 @@ import com.example.ui.Routes
 import com.example.ui.components.CurrencySelector
 import com.example.ui.components.PriceEvolutionChart
 import com.example.ui.components.SlabShowcaseDialog
+import com.example.util.OfficialCardImageHelper
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -167,9 +168,15 @@ fun ItemDetailScreen(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (!item.imageUri.isNullOrBlank()) {
+                            val resolvedImageUrl = if (!item.imageUri.isNullOrBlank()) {
+                                item.imageUri
+                            } else {
+                                OfficialCardImageHelper.getOfficialImageUrl(item.name, item.subCategory, item.collection, item.itemNumber)
+                            }
+
+                            if (!resolvedImageUrl.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = item.imageUri,
+                                    model = resolvedImageUrl,
                                     contentDescription = item.name,
                                     contentScale = ContentScale.Fit,
                                     modifier = Modifier
@@ -194,11 +201,26 @@ fun ItemDetailScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Fotos do Item (Frente, Verso, Detalhes)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Text("Fotos do Item", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    val officialUrl = remember(item.name, item.subCategory, item.collection, item.itemNumber) {
+                                        OfficialCardImageHelper.getOfficialImageUrl(item.name, item.subCategory, item.collection, item.itemNumber)
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            val updated = item.copy(imageUri = officialUrl)
+                                            viewModel.updateItem(updated)
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Foto Oficial HD", fontSize = 11.sp)
+                                    }
+
                                     TextButton(
                                         onClick = { backCameraLauncher.launch(null) },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Icon(Icons.Default.FlipToBack, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
@@ -206,7 +228,7 @@ fun ItemDetailScreen(
                                     }
                                     TextButton(
                                         onClick = { detailCameraLauncher.launch(null) },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))

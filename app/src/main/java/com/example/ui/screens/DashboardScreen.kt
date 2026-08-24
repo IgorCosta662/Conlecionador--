@@ -580,6 +580,68 @@ fun DashboardScreen(
                         }
                     )
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuickActionButton(
+                        icon = Icons.Default.MenuBook,
+                        title = "Catálogo",
+                        subtitle = "Cartas & Carrinhos",
+                        containerColor = Color(0xFFFFFBEB),
+                        contentColor = Color(0xFFB45309),
+                        modifier = Modifier.weight(1f),
+                        testTag = "btn_quick_catalog",
+                        onClick = {
+                            navController.navigate(Routes.CATALOG)
+                        }
+                    )
+
+                    QuickActionButton(
+                        icon = Icons.Default.Checklist,
+                        title = "Checklists",
+                        subtitle = "Progresso de Sets",
+                        containerColor = Color(0xFFEFF6FF),
+                        contentColor = Color(0xFF1D4ED8),
+                        modifier = Modifier.weight(1f),
+                        testTag = "btn_quick_checklists",
+                        onClick = {
+                            navController.navigate(Routes.SET_CHECKLIST)
+                        }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuickActionButton(
+                        icon = Icons.Default.TrendingUp,
+                        title = "Mercado",
+                        subtitle = "Radar & Cotações",
+                        containerColor = Color(0xFFECFDF5),
+                        contentColor = Color(0xFF047857),
+                        modifier = Modifier.weight(1f),
+                        testTag = "btn_quick_marketplace",
+                        onClick = {
+                            navController.navigate(Routes.MARKETPLACE)
+                        }
+                    )
+
+                    QuickActionButton(
+                        icon = Icons.Default.BarChart,
+                        title = "Estatísticas",
+                        subtitle = "Gráficos & Análise",
+                        containerColor = Color(0xFFF5F3FF),
+                        contentColor = Color(0xFF6D28D9),
+                        modifier = Modifier.weight(1f),
+                        testTag = "btn_quick_statistics",
+                        onClick = {
+                            navController.navigate(Routes.STATISTICS)
+                        }
+                    )
+                }
             }
         }
 

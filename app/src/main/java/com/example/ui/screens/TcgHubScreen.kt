@@ -75,6 +75,9 @@ fun TcgHubScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { navController.navigate(Routes.CATALOG) }) {
+                        Icon(Icons.Default.MenuBook, contentDescription = "Ver Catálogo Completo")
+                    }
                     IconButton(onClick = {
                         viewModel.selectedCategoryFilter.value = "Trading Cards"
                         navController.navigate(Routes.COLLECTION)

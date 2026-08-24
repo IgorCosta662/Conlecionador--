@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.api.ItemIdentificationResult
 import com.example.data.*
 import com.example.ui.CollectorViewModel
@@ -40,6 +42,7 @@ import com.example.ui.ScanUiState
 import com.example.ui.components.ConfidenceMeter
 import com.example.ui.components.CurrencySelector
 import com.example.ui.components.PriceEvolutionChart
+import com.example.util.OfficialCardImageHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +61,9 @@ fun ScanResultScreen(
     // Multi-photo support
     var backImageUri by remember { mutableStateOf<String?>(null) }
     val detailImages = remember { mutableStateListOf<String>() }
+
+    // Official Web Card Image toggle
+    var preferOfficialImage by remember { mutableStateOf(false) }
 
     val backCameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -217,11 +223,20 @@ fun ScanResultScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        val officialUrl = remember(itemResult.name, itemResult.subCategory, itemResult.collection, itemResult.itemNumber) {
+                            OfficialCardImageHelper.getOfficialImageUrl(
+                                name = itemResult.name,
+                                subCategory = itemResult.subCategory,
+                                collection = itemResult.collection,
+                                itemNumber = itemResult.itemNumber
+                            )
+                        }
+
                         // Image banner
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp)
+                                .height(230.dp)
                                 .background(
                                     Brush.verticalGradient(
                                         listOf(
@@ -232,13 +247,25 @@ fun ScanResultScreen(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (imageBitmap != null) {
-                                Image(
-                                    bitmap = imageBitmap,
-                                    contentDescription = "Foto do Item Identificado",
+                            if (preferOfficialImage && officialUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = officialUrl,
+                                    contentDescription = "Foto Oficial da Web",
+                                    contentScale = ContentScale.Fit,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                                        .padding(8.dp)
+                                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                                )
+                            } else if (imageBitmap != null) {
+                                Image(
+                                    bitmap = imageBitmap,
+                                    contentDescription = "Foto do Item Capturada",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(4.dp)
+                                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                                 )
                             } else {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -257,35 +284,71 @@ fun ScanResultScreen(
                                     )
                                 }
                             }
+
+                            // Badge indicator on top-right of image
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = if (preferOfficialImage) "✨ Imagem Oficial HD" else "📷 Sua Foto",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
 
-                        // Multi-photo adders (Verso + Detalhes)
+                        // Toggle Buttons (Sua Foto vs Foto Oficial HD + Verso + Detalhes)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            FilledTonalButton(
+                                onClick = { preferOfficialImage = !preferOfficialImage },
+                                modifier = Modifier.weight(1.2f),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (preferOfficialImage) Icons.Default.PhotoCamera else Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (preferOfficialImage) "Ver Minha Foto" else "Buscar Foto Oficial Web",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
                             OutlinedButton(
                                 onClick = { backCameraLauncher.launch(null) },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(0.9f),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
                             ) {
                                 Icon(Icons.Default.FlipToBack, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (backImageUri != null) "Verso Salvo" else "+ Foto Verso", fontSize = 11.sp)
+                                Text(if (backImageUri != null) "Verso OK" else "+ Verso", fontSize = 11.sp)
                             }
 
                             OutlinedButton(
                                 onClick = { detailCameraLauncher.launch(null) },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(0.9f),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
                             ) {
                                 Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (detailImages.isNotEmpty()) "${detailImages.size} Detalhes" else "+ Detalhes", fontSize = 11.sp)
+                                Text(if (detailImages.isNotEmpty()) "${detailImages.size} Det." else "+ Detalhes", fontSize = 11.sp)
                             }
                         }
 
@@ -701,18 +764,29 @@ fun ScanResultScreen(
 
     // Modal para "Adicionar à Coleção"
     if (showAddToCollectionDialog) {
+        val officialUrl = remember(itemResult.name, itemResult.subCategory, itemResult.collection, itemResult.itemNumber) {
+            OfficialCardImageHelper.getOfficialImageUrl(
+                name = itemResult.name,
+                subCategory = itemResult.subCategory,
+                collection = itemResult.collection,
+                itemNumber = itemResult.itemNumber
+            )
+        }
+
         AddToCollectionModal(
             itemResult = itemResult,
             selectedCurrency = selectedCurrency,
             onDismiss = { showAddToCollectionDialog = false },
             onConfirm = { qty, paidPrice, location, notes ->
+                val finalImageUri = if (preferOfficialImage && officialUrl.isNotBlank()) officialUrl else successState.savedImageUri
+
                 viewModel.saveIdentifiedItemToCollection(
                     identification = itemResult,
                     quantity = qty,
                     purchasePrice = paidPrice,
                     storageLocation = location,
                     notes = notes,
-                    imageUri = successState.savedImageUri,
+                    imageUri = finalImageUri,
                     backImageUri = backImageUri,
                     detailImages = detailImages.toList()
                 )

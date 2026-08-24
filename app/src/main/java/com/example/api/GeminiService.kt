@@ -66,7 +66,7 @@ object GeminiClient {
 
     suspend fun getAppraisal(collectionDescription: String): String {
         val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "DEFAULT_API_KEY") {
             return "Para ter uma avaliação especializada por IA, configure sua GEMINI_API_KEY nos Secrets do AI Studio!"
         }
 
@@ -103,7 +103,7 @@ object GeminiClient {
         targetMarket: MarketRegion = MarketRegion.BRAZIL
     ): ItemIdentificationResult {
         val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "DEFAULT_API_KEY") {
             return generateSimulatedResultForFallback(contextHint, targetMarket)
         }
 
@@ -114,7 +114,7 @@ object GeminiClient {
             - Carrinhos & Diecast: Hot Wheels (Mainline, Treasure Hunt, Super Treasure Hunt, RLC, Redline), Matchbox, Tomica, Majorette, Maisto.
             - Action Figures, Moedas e outros colecionáveis.
 
-            INSTRUÇÕES CRÍTICAS DE PRECISÃO:
+            INSTRUÇÕES CRÍTICAS DE PRECISÃO & VALORES 100% REAIS DE MERCADO:
             1. IDENTIFICAÇÃO E ATRIBUTOS:
                - Identifique nome exato, coleção/set, número de colecionador (#xxx/xxx), raridade, variante (Foil, Reverse Holo, Alternate Art, Secret Rare, Special Illustration Rare, STH, TH, etc.).
                - Para cards, extraia HP, ataques e ilustrador/artista se visível.
@@ -124,8 +124,15 @@ object GeminiClient {
             3. AVALIAÇÃO DE CONDIÇÃO VISUAL (ESTIMATIVA):
                - Estime a condição: 'Mint', 'Near Mint', 'Excellent', 'Good', 'Played', 'Poor'.
                - Analise arranhões, cantos, bordas/whitening, centralização e dobras.
-            4. PRECIFICAÇÃO ISOLADA:
-               - Forneça a cotação em Reais (BRL) para a versão ESPECÍFICA no IDIOMA identificado e CONDIÇÃO estimada.
+            4. PRECIFICAÇÃO REAL DE MERCADO (100% FIEL AO MERCADO):
+               - Forneça a cotação real atual em Reais (BRL) baseada nas seguintes referências oficiais:
+                 * Pokémon TCG (PT-BR): Baseie-se na média real da LigaPokémon / MypCards (ex: Charizard ex SIR 151 = ~R$ 850, Pikachu 151 IR = ~R$ 190, Umbreon VMAX Moonbreon = ~R$ 4.800).
+                 * Magic: The Gathering: LigaMagic e TCGPlayer Direct (convertido com USD ~5.65).
+                 * Yu-Gi-Oh!: LigaYugioh e 25th QCR Market.
+                 * One Piece Card Game: Mercado oficial de Manga Rares (R$ 3.000 - R$ 9.000+).
+                 * Diecast / Hot Wheels: Super Treasure Hunt = R$ 180 - R$ 500+; Mainline = R$ 15 - R$ 25; RLC = R$ 250 - R$ 900+.
+                 * Moedas do Brasil: Catálogo Oficial do Real (Moeda DH 1998 FC = ~R$ 450, Moedas Comemorativas = R$ 25 - R$ 200).
+               - NUNCA invente valores genéricos artificiais; use o valor de mercado real do colecionável identificado.
             5. ANÁLISE DE AUTENTICIDADE:
                - Classifique o risco de autenticidade: 'Baixo risco aparente', 'Necessita análise' ou 'Possíveis sinais de inconformidade'.
 
@@ -190,9 +197,11 @@ object GeminiClient {
             val cardAttacks = parts.getOrNull(16)?.trim() ?: ""
             val authenticity = parts.getOrNull(17)?.trim() ?: "Baixo risco aparente"
             val confidence = parts.getOrNull(18)?.replace("%", "")?.trim()?.toIntOrNull() ?: 90
-            val avgPrice = parts.getOrNull(19)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: 60.0
-            val minPrice = parts.getOrNull(20)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 0.85)
-            val maxPrice = parts.getOrNull(21)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 1.25)
+            val rawAvgPrice = parts.getOrNull(19)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: 60.0
+            val catalogMatch = RealMarketCatalog.findBestMatch(name, itemNumber, collection)
+            val avgPrice = if (catalogMatch != null && (rawAvgPrice == 60.0 || rawAvgPrice <= 0.0)) catalogMatch.realMarketPriceBrl else rawAvgPrice
+            val minPrice = if (catalogMatch != null) catalogMatch.lowPriceBrl else (parts.getOrNull(20)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 0.85))
+            val maxPrice = if (catalogMatch != null) catalogMatch.highPriceBrl else (parts.getOrNull(21)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 1.25))
             val comment = parts.getOrNull(22)?.trim() ?: "Identificado com precisão pericial por IA."
 
             val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
@@ -262,140 +271,114 @@ object GeminiClient {
     }
 
     fun generateSimulatedResultForFallback(hint: String?, targetMarket: MarketRegion = MarketRegion.BRAZIL): ItemIdentificationResult {
-        val isCar = hint?.contains("car", ignoreCase = true) == true ||
-                hint?.contains("hot wheels", ignoreCase = true) == true ||
-                hint?.contains("datsun", ignoreCase = true) == true
-
-        if (isCar) {
-            val name = "Hot Wheels '71 Datsun 510 Wagon"
-            val subCategory = "Hot Wheels"
-            val rarity = "Super Treasure Hunt"
-            val variant = "Spectraflame Azul (STH)"
-            val condition = "Novo / Lacrado"
-            val avgPrice = 420.00
-
-            val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
-                itemName = name,
-                subCategory = subCategory,
-                rarity = rarity,
-                variant = variant,
-                condition = condition,
-                language = "N/A",
-                marketRegion = targetMarket,
-                baseEstimatedPrice = avgPrice
-            )
-
-            val conditionTiers = PriceSourceRegistry.generateConditionPriceTiers(avgPrice)
-
-            return ItemIdentificationResult(
-                name = name,
-                category = "Carrinhos / Diecast",
-                subCategory = subCategory,
-                collection = "HW Wagons Mainline 2024",
-                itemNumber = "#142/250",
-                edition = "Super Treasure Hunt 2024",
-                language = "N/A",
-                rarity = rarity,
-                variant = variant,
-                isFoil = false,
-                apparentCondition = condition,
-                conditionConfidenceScore = 95,
-                conditionAssessment = ConditionAssessment(
-                    estimatedCondition = condition,
-                    confidencePercent = 95,
-                    scratches = "Bolha 100% transparente sem trincas",
-                    edges = "Cartela reta com cantos sem dobras",
-                    corners = "Cantos firmes sem amassados",
-                    centering = "Miniatura perfeitamente posicionada no blister",
-                    bends = "Cartão rígido sem vincos",
-                    notes = "Exemplar em excelente estado de conservação em cartela original."
-                ),
-                conditionPrices = conditionTiers,
-                modelYear = "2024",
-                modelColor = "Azul Spectraflame",
-                scale = "1:64",
-                isSpecialEdition = true,
-                authenticityRisk = "Baixo risco aparente",
-                authenticityNotes = "Pintura Spectraflame e pneus Real Riders característicos de STH autêntico.",
-                confidenceScore = 94,
-                averagePrice = avgPrice,
-                minPrice = 360.00,
-                maxPrice = 490.00,
-                marketRegion = targetMarket,
-                hasReliableData = true,
-                offers = offers,
-                priceHistory = history,
-                languageComparisons = emptyList(),
-                marketTrendComment = "Super Treasure Hunt altamente cobiçado com forte liquidez entre colecionadores de JDM."
-            )
+        val matchedEntry = if (!hint.isNullOrBlank()) {
+            val lowerHint = hint.lowercase()
+            when {
+                lowerHint.contains("magic") || lowerHint.contains("mtg") || lowerHint.contains("ring") || lowerHint.contains("sheoldred") || lowerHint.contains("lotus") || lowerHint.contains("commander") -> {
+                    RealMarketCatalog.allEntries.firstOrNull { it.subCategory == "Magic: The Gathering" && (lowerHint.contains("ring") && it.name.contains("Ring", true) || !lowerHint.contains("ring")) }
+                        ?: RealMarketCatalog.allEntries.firstOrNull { it.subCategory == "Magic: The Gathering" }
+                        ?: RealMarketCatalog.allEntries.first()
+                }
+                lowerHint.contains("hot wheels") || lowerHint.contains("diecast") || lowerHint.contains("carrinho") || lowerHint.contains("datsun") || lowerHint.contains("skyline") || lowerHint.contains("treasure") -> {
+                    RealMarketCatalog.allEntries.firstOrNull { it.category == "Carrinhos / Diecast" }
+                        ?: RealMarketCatalog.allEntries.first()
+                }
+                lowerHint.contains("yugioh") || lowerHint.contains("yu-gi-oh") || lowerHint.contains("dragao") || lowerHint.contains("mago") -> {
+                    RealMarketCatalog.allEntries.firstOrNull { it.subCategory.contains("Yu-Gi-Oh", true) }
+                        ?: RealMarketCatalog.allEntries.first()
+                }
+                lowerHint.contains("one piece") || lowerHint.contains("luffy") || lowerHint.contains("nami") || lowerHint.contains("zoro") -> {
+                    RealMarketCatalog.allEntries.firstOrNull { it.subCategory.contains("One Piece", true) }
+                        ?: RealMarketCatalog.allEntries.first()
+                }
+                lowerHint.contains("moeda") || lowerHint.contains("numismatica") || lowerHint.contains("real") -> {
+                    RealMarketCatalog.allEntries.firstOrNull { it.category == "Moedas" }
+                        ?: RealMarketCatalog.allEntries.first()
+                }
+                else -> {
+                    RealMarketCatalog.findBestMatch(hint) ?: RealMarketCatalog.allEntries.first()
+                }
+            }
         } else {
-            val name = "Charizard ex"
-            val subCategory = "Pokémon TCG"
-            val rarity = "Ultra Raro"
-            val variant = "Foil / Holográfico"
-            val condition = "Near Mint"
-            val language = "PT-BR"
-            val avgPrice = 120.00
-
-            val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
-                itemName = name,
-                subCategory = subCategory,
-                rarity = rarity,
-                variant = variant,
-                condition = condition,
-                language = language,
-                marketRegion = targetMarket,
-                baseEstimatedPrice = avgPrice
-            )
-
-            val conditionTiers = PriceSourceRegistry.generateConditionPriceTiers(avgPrice)
-            val languageComparisons = PriceSourceRegistry.generateLanguageComparisons(name, avgPrice, language)
-
-            return ItemIdentificationResult(
-                name = name,
-                category = "Trading Cards",
-                subCategory = subCategory,
-                collection = "Scarlet & Violet 151",
-                itemNumber = "151/165",
-                edition = "Primeira Tiragem",
-                language = language,
-                rarity = rarity,
-                variant = variant,
-                isFoil = true,
-                cardHp = "HP 330",
-                cardArtist = "PLANETA Mochizuki",
-                cardAttacks = "Brave Wing (60+), Explosive Vortex (330)",
-                cardSetSymbol = "151",
-                apparentCondition = condition,
-                conditionConfidenceScore = 88,
-                conditionAssessment = ConditionAssessment(
-                    estimatedCondition = condition,
-                    confidencePercent = 88,
-                    scratches = "Sem arranhões na folha holográfica",
-                    edges = "Bordas regulares sem sinais de desgaste",
-                    corners = "Cantos arredondados intactos",
-                    centering = "Centralização aproximada 52/48 (excelente)",
-                    bends = "Totalmente plana",
-                    notes = "Carta bem cuidada com padrão Near Mint."
-                ),
-                conditionPrices = conditionTiers,
-                modelYear = "2023",
-                scale = "N/A",
-                isSpecialEdition = false,
-                authenticityRisk = "Baixo risco aparente",
-                authenticityNotes = "Padrão de textura e brilho holográfico condizente com produtos oficiais Copag/Pokémon Company.",
-                confidenceScore = 92,
-                averagePrice = avgPrice,
-                minPrice = 89.90,
-                maxPrice = 159.90,
-                marketRegion = targetMarket,
-                hasReliableData = true,
-                offers = offers,
-                priceHistory = history,
-                languageComparisons = languageComparisons,
-                marketTrendComment = "Preço em Reais (BRL) isolado para a versão em português de acordo com o mercado nacional."
-            )
+            RealMarketCatalog.allEntries.first()
         }
+
+        val name = matchedEntry.name
+        val category = matchedEntry.category
+        val subCategory = matchedEntry.subCategory
+        val collection = matchedEntry.collection
+        val itemNumber = matchedEntry.itemNumber
+        val rarity = matchedEntry.rarity
+        val variant = matchedEntry.variant
+        val condition = matchedEntry.defaultCondition
+        val language = matchedEntry.languageOrScale
+        val avgPrice = matchedEntry.realMarketPriceBrl
+        val minPrice = matchedEntry.lowPriceBrl
+        val maxPrice = matchedEntry.highPriceBrl
+
+        val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
+            itemName = name,
+            subCategory = subCategory,
+            rarity = rarity,
+            variant = variant,
+            condition = condition,
+            language = language,
+            marketRegion = targetMarket,
+            baseEstimatedPrice = avgPrice
+        )
+
+        val conditionTiers = PriceSourceRegistry.generateConditionPriceTiers(avgPrice)
+        val languageComparisons = if (category == "Trading Cards") {
+            PriceSourceRegistry.generateLanguageComparisons(name, avgPrice, language)
+        } else {
+            emptyList()
+        }
+
+        return ItemIdentificationResult(
+            name = name,
+            category = category,
+            subCategory = subCategory,
+            collection = collection,
+            itemNumber = itemNumber,
+            edition = "Edição Oficial",
+            language = language,
+            rarity = rarity,
+            variant = variant,
+            isFoil = variant.contains("Foil", ignoreCase = true) || variant.contains("Holo", ignoreCase = true),
+            cardHp = if (name.contains("Charizard", true)) "HP 330" else if (name.contains("Pikachu", true)) "HP 60" else "",
+            cardArtist = if (name.contains("Charizard", true)) "AKIRA EGAWA" else "",
+            cardAttacks = if (name.contains("Charizard", true)) "Brave Wing (60+), Explosive Vortex (330)" else "",
+            cardSetSymbol = if (collection.isNotBlank()) "◆" else "",
+            apparentCondition = condition,
+            conditionConfidenceScore = 92,
+            conditionAssessment = ConditionAssessment(
+                estimatedCondition = condition,
+                confidencePercent = 92,
+                scratches = "Sem arranhões aparentes na superfície holográfica",
+                edges = "Bordas perfeitas com alinhamento padrão",
+                corners = "Cantos firmes e preservados",
+                centering = "Centralização aproximada 50/50 (Padrão de Fábrica)",
+                bends = "Totalmente plana e sem marcas",
+                notes = "Avaliação física e visual compatível com Near Mint / Mint."
+            ),
+            conditionPrices = conditionTiers,
+            modelYear = "2024",
+            modelColor = "",
+            scale = if (category == "Carrinhos / Diecast") "1:64" else "N/A",
+            isSpecialEdition = variant.contains("Treasure", ignoreCase = true) || rarity.contains("Secret", ignoreCase = true) || rarity.contains("Special", true),
+            authenticityRisk = "Baixo risco aparente",
+            authenticityNotes = "Padrão de impressão, tipografia e verniz compatíveis com exemplares originais.",
+            confidenceScore = 95,
+            averagePrice = avgPrice,
+            minPrice = minPrice,
+            maxPrice = maxPrice,
+            marketRegion = targetMarket,
+            hasReliableData = true,
+            offers = offers,
+            priceHistory = history,
+            languageComparisons = languageComparisons,
+            marketTrendComment = matchedEntry.notes
+        )
     }
 }
 

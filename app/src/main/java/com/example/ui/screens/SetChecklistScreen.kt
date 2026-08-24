@@ -18,15 +18,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.data.*
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
+import com.example.util.OfficialCardImageHelper
 
 enum class ChecklistFilter(val title: String) {
     ALL("Todas"),
@@ -56,17 +59,36 @@ fun SetChecklistScreen(
     var selectedSort by remember { mutableStateOf(MissingSortOption.NUMBER) }
     var searchQuery by remember { mutableStateOf("") }
 
+    var selectedFranchiseFilter by remember { mutableStateOf("TODOS") }
+    var selectedEraFilter by remember { mutableStateOf("TODAS") }
+
     val currentSet = sets.firstOrNull { it.id == selectedSetId } ?: sets.first()
+
+    val franchises = remember(sets) {
+        listOf("TODOS") + sets.map { it.franchise }.distinct().sorted()
+    }
+
+    val eras = remember(sets, selectedFranchiseFilter) {
+        val filtered = if (selectedFranchiseFilter == "TODOS") sets else sets.filter { it.franchise == selectedFranchiseFilter }
+        listOf("TODAS") + filtered.map { if (it.era.isNotBlank()) it.era else it.year }.distinct().sortedDescending()
+    }
+
+    val availableSetsForPicker = remember(sets, selectedFranchiseFilter, selectedEraFilter, searchQuery) {
+        sets.filter { set ->
+            val matchFranchise = selectedFranchiseFilter == "TODOS" || set.franchise == selectedFranchiseFilter
+            val matchEra = selectedEraFilter == "TODAS" || set.era == selectedEraFilter || set.year == selectedEraFilter
+            matchFranchise && matchEra
+        }
+    }
 
     // Calculate progress for current set
     val ownedInSet = remember(allItems, currentSet) {
         allItems.filter { item ->
             item.collection.contains(currentSet.name, ignoreCase = true) ||
             currentSet.name.contains(item.collection, ignoreCase = true) ||
-            (currentSet.franchise.contains("Pokémon", ignoreCase = true) && item.subCategory.contains("Pokémon", ignoreCase = true) && currentSet.items.any { s -> s.name.equals(item.name, ignoreCase = true) }) ||
-            (currentSet.franchise.contains("Hot Wheels", ignoreCase = true) && item.isDiecast && currentSet.items.any { s -> s.name.equals(item.name, ignoreCase = true) }) ||
-            (currentSet.franchise.contains("Magic", ignoreCase = true) && item.subCategory.contains("Magic", ignoreCase = true) && currentSet.items.any { s -> s.name.equals(item.name, ignoreCase = true) }) ||
-            (currentSet.franchise.contains("Yu-Gi-Oh", ignoreCase = true) && item.subCategory.contains("Yu-Gi-Oh", ignoreCase = true) && currentSet.items.any { s -> s.name.equals(item.name, ignoreCase = true) })
+            (currentSet.code.isNotBlank() && item.collection.contains(currentSet.code, ignoreCase = true)) ||
+            (currentSet.code.isNotBlank() && item.notes.contains(currentSet.code, ignoreCase = true)) ||
+            currentSet.items.any { s -> s.name.equals(item.name, ignoreCase = true) }
         }
     }
 
@@ -160,38 +182,109 @@ fun SetChecklistScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Set Selector Chips
+            // Set Selector Chips & Filters
             item {
-                Text(
-                    text = "Escolha o Set / Coleção:",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(sets) { set ->
-                        val isSelected = set.id == selectedSetId
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { selectedSetId = set.id },
-                            label = { Text(set.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            leadingIcon = {
-                                Icon(
-                                    when (set.iconCategory) {
-                                        "diecast" -> Icons.Default.DirectionsCar
-                                        "pokemon" -> Icons.Default.Style
-                                        "magic" -> Icons.Default.AutoAwesome
-                                        else -> Icons.Default.Category
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "1. Filtrar por Franquia & Era / Ano:",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // Franchise Row
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(franchises) { franchise ->
+                            FilterChip(
+                                selected = selectedFranchiseFilter == franchise,
+                                onClick = {
+                                    selectedFranchiseFilter = franchise
+                                    selectedEraFilter = "TODAS"
+                                    val firstMatch = sets.firstOrNull { franchise == "TODOS" || it.franchise == franchise }
+                                    if (firstMatch != null) selectedSetId = firstMatch.id
+                                },
+                                label = { Text(if (franchise == "TODOS") "🌟 Todas Franquias" else franchise, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+
+                    // Era Row if available
+                    if (eras.size > 2) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(eras) { era ->
+                                FilterChip(
+                                    selected = selectedEraFilter == era,
+                                    onClick = {
+                                        selectedEraFilter = era
+                                        val firstMatch = availableSetsForPicker.firstOrNull { era == "TODAS" || it.era == era || it.year == era }
+                                        if (firstMatch != null) selectedSetId = firstMatch.id
                                     },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    label = { Text(if (era == "TODAS") "📅 Todas as Eras" else "📅 $era", fontSize = 11.sp) }
                                 )
                             }
-                        )
+                        }
+                    }
+
+                    Text(
+                        text = "2. Escolha o Set / Coleção (${availableSetsForPicker.size} disponíveis):",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(availableSetsForPicker) { set ->
+                            val isSelected = set.id == selectedSetId
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedSetId = set.id },
+                                label = {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (set.code.isNotBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.primaryContainer
+                                            ) {
+                                                Text(
+                                                    text = set.code,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = set.name,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        when (set.iconCategory) {
+                                            "diecast" -> Icons.Default.DirectionsCar
+                                            "pokemon" -> Icons.Default.Style
+                                            "magic" -> Icons.Default.AutoAwesome
+                                            else -> Icons.Default.Category
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -390,7 +483,7 @@ fun SetChecklistScreen(
                         // Checkbox or Status Icon
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(if (isOwned) Color(0xFFDCFCE7) else MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
@@ -399,7 +492,29 @@ fun SetChecklistScreen(
                                 imageVector = if (isOwned) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                 contentDescription = if (isOwned) "Possui" else "Falta",
                                 tint = if (isOwned) Color(0xFF16A34A) else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Card / Pokémon Image Preview Thumbnail
+                        Box(
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 58.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF1E1E2E)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val cardImageUrl = OfficialCardImageHelper.getOfficialImageUrl(
+                                name = card.name,
+                                subCategory = currentSet.franchise,
+                                collection = currentSet.name,
+                                itemNumber = card.number
+                            )
+                            AsyncImage(
+                                model = cardImageUrl,
+                                contentDescription = card.name,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize().padding(2.dp)
                             )
                         }
 
@@ -408,17 +523,38 @@ fun SetChecklistScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = if (card.setCode.isNotBlank()) "${card.setCode} ${card.number}" else card.number,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
                                 Text(
-                                    text = card.number,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "• ${card.rarity}",
+                                    text = card.rarity,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )
+                                if (card.patternVariant != "Standard" && card.patternVariant.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFF59E0B).copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = card.patternVariant,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFD97706),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
                             }
 
                             Text(
@@ -446,24 +582,58 @@ fun SetChecklistScreen(
 
                         // Action Button
                         if (!isOwned) {
-                            FilledTonalButton(
-                                onClick = {
-                                    viewModel.insertWishlistItem(
-                                        name = "${card.name} (${card.number})",
-                                        category = if (currentSet.franchise.contains("Hot Wheels")) "Diecast" else "Cards",
-                                        subCategory = currentSet.name,
-                                        targetMaxPrice = card.estimatedPriceBrl,
-                                        priority = if (card.estimatedPriceBrl > 100) "Alta" else "Média",
-                                        notes = "Adicionado pelo checklist do set ${currentSet.name}"
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(
+                                    onClick = {
+                                        val newItem = Item(
+                                            name = card.name,
+                                            type = if (currentSet.franchise.contains("Hot Wheels")) "Carrinhos / Diecast" else "Trading Cards",
+                                            subCategory = currentSet.franchise,
+                                            collection = currentSet.name,
+                                            itemNumber = card.number,
+                                            rarity = card.rarity,
+                                            condition = "Near Mint (NM)",
+                                            estimatedValue = card.estimatedPriceBrl,
+                                            purchasePrice = card.estimatedPriceBrl * 0.7,
+                                            quantity = 1,
+                                            storageLocation = "Pasta ${currentSet.name}",
+                                            notes = "Adicionado pelo Checklist oficial ${currentSet.name} [${currentSet.code}].",
+                                            tags = "${currentSet.franchise}, ${currentSet.name}, ${card.name}, ${card.patternVariant}".lowercase(),
+                                            variant = card.variant,
+                                            language = card.language,
+                                            year = currentSet.year,
+                                            imageUri = OfficialCardImageHelper.getOfficialImageUrl(card.name, currentSet.franchise, currentSet.name, card.number)
+                                        )
+                                        viewModel.insertItem(newItem)
+                                        snackbarMessage = "✓ ${card.name} adicionado à sua coleção!"
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.AddCircle,
+                                        contentDescription = "Adicionar à Coleção",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
                                     )
-                                    snackbarMessage = "${card.name} adicionado à Lista de Desejos!"
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Desejo", fontSize = 11.sp)
+                                }
+
+                                FilledTonalButton(
+                                    onClick = {
+                                        viewModel.insertWishlistItem(
+                                            name = "${card.name} (${card.number})",
+                                            category = if (currentSet.franchise.contains("Hot Wheels")) "Diecast" else "Cards",
+                                            subCategory = currentSet.name,
+                                            targetMaxPrice = card.estimatedPriceBrl,
+                                            priority = if (card.estimatedPriceBrl > 100) "Alta" else "Média",
+                                            notes = "Adicionado pelo checklist do set ${currentSet.name}"
+                                        )
+                                        snackbarMessage = "${card.name} adicionado à Lista de Desejos!"
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Desejo", fontSize = 10.sp)
+                                }
                             }
                         } else {
                             IconButton(onClick = {
