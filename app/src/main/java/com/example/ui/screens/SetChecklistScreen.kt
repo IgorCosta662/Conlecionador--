@@ -205,7 +205,10 @@ fun SetChecklistScreen(
                                     val firstMatch = sets.firstOrNull { franchise == "TODOS" || it.franchise == franchise }
                                     if (firstMatch != null) selectedSetId = firstMatch.id
                                 },
-                                label = { Text(if (franchise == "TODOS") "🌟 Todas Franquias" else franchise, fontSize = 12.sp) }
+                                leadingIcon = if (franchise == "TODOS") {
+                                    { Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                } else null,
+                                label = { Text(if (franchise == "TODOS") "Todas Franquias" else franchise, fontSize = 12.sp) }
                             )
                         }
                     }
@@ -224,7 +227,10 @@ fun SetChecklistScreen(
                                         val firstMatch = availableSetsForPicker.firstOrNull { era == "TODAS" || it.era == era || it.year == era }
                                         if (firstMatch != null) selectedSetId = firstMatch.id
                                     },
-                                    label = { Text(if (era == "TODAS") "📅 Todas as Eras" else "📅 $era", fontSize = 11.sp) }
+                                    leadingIcon = {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(12.dp))
+                                    },
+                                    label = { Text(if (era == "TODAS") "Todas as Eras" else era, fontSize = 11.sp) }
                                 )
                             }
                         }
@@ -605,7 +611,7 @@ fun SetChecklistScreen(
                                             imageUri = OfficialCardImageHelper.getOfficialImageUrl(card.name, currentSet.franchise, currentSet.name, card.number)
                                         )
                                         viewModel.insertItem(newItem)
-                                        snackbarMessage = "✓ ${card.name} adicionado à sua coleção!"
+                                        snackbarMessage = "${card.name} adicionado à sua coleção!"
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {

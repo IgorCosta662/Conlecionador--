@@ -75,12 +75,12 @@ fun CollectionScreen(
     val totalCount = items.sumOf { it.quantity }
 
     val categoryTabs = listOf(
-        "TODOS" to "Todos",
-        "Trading Cards" to "🃏 TCG",
-        "Carrinhos / Diecast" to "🏎️ Diecast",
-        "Action Figures" to "🦸 Figures",
-        "Moedas" to "🪙 Moedas",
-        "Outros" to "📦 Outros"
+        Triple("TODOS", "Todos", Icons.Default.Apps),
+        Triple("Trading Cards", "TCG", Icons.Default.Style),
+        Triple("Carrinhos / Diecast", "Diecast", Icons.Default.DirectionsCar),
+        Triple("Action Figures", "Figures", Icons.Default.AccessibilityNew),
+        Triple("Moedas", "Moedas", Icons.Default.MonetizationOn),
+        Triple("Outros", "Outros", Icons.Default.Inventory2)
     )
 
     // Dynamic Subcategories & Brands based on selected category
@@ -257,7 +257,7 @@ fun CollectionScreen(
                 containerColor = MaterialTheme.colorScheme.surface,
                 divider = {}
             ) {
-                categoryTabs.forEachIndexed { index, (key, label) ->
+                categoryTabs.forEachIndexed { index, (key, label, icon) ->
                     val isSelected = selectedCategory == key
                     Tab(
                         selected = isSelected,
@@ -265,6 +265,13 @@ fun CollectionScreen(
                             viewModel.selectedCategoryFilter.value = key
                             viewModel.selectedSubCategoryFilter.value = "TODOS"
                             selectedSetFilter = "TODOS"
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
                         },
                         text = {
                             Text(
@@ -1053,13 +1060,29 @@ private fun ItemListItem(
                     )
 
                     if (item.storageLocation.isNotBlank()) {
-                        Text(
-                            text = "• 📍 ${item.storageLocation}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Icon(
+                                Icons.Default.Place,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = item.storageLocation,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -1138,7 +1161,7 @@ private fun ItemCompactRow(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${item.subCategory} • ${item.collection} ${if (item.storageLocation.isNotBlank()) "• 📍 " + item.storageLocation else ""}",
+                        text = "${item.subCategory} • ${item.collection}${if (item.storageLocation.isNotBlank()) " • " + item.storageLocation else ""}",
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.outline,

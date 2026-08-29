@@ -452,12 +452,23 @@ fun MagicTcgScreen(
                         // Real-Time Autocomplete Suggestions Row
                         if (liveSuggestions.isNotEmpty()) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(
-                                    text = "💡 Sugestões em tempo real (Scryfall Autocomplete):",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF6366F1)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Lightbulb,
+                                        contentDescription = null,
+                                        tint = Color(0xFF6366F1),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "Sugestões em tempo real (Scryfall Autocomplete):",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF6366F1)
+                                    )
+                                }
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -521,13 +532,24 @@ fun MagicTcgScreen(
                                                 color = Color(0xFF4F46E5),
                                                 shape = RoundedCornerShape(4.dp)
                                             ) {
-                                                Text(
-                                                    text = "✨ Fuzzy Match",
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White,
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                )
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.AutoAwesome,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(10.dp)
+                                                    )
+                                                    Text(
+                                                        text = "Fuzzy Match",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
                                             }
                                             Text(
                                                 text = directFuzzyCard!!.name,
@@ -730,7 +752,10 @@ fun MagicTcgScreen(
                                     FilterChip(
                                         selected = selectedSetYearFilter == year,
                                         onClick = { selectedSetYearFilter = year },
-                                        label = { Text(if (year == "TODOS") "Todos os Anos" else "📅 $year", fontSize = 11.sp) }
+                                        leadingIcon = {
+                                            Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(12.dp))
+                                        },
+                                        label = { Text(if (year == "TODOS") "Todos os Anos" else year, fontSize = 11.sp) }
                                     )
                                 }
                             }
@@ -822,7 +847,7 @@ fun ScryfallSetListItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "📅 Ano: ${set.releaseYear} • ${set.formattedSetType}",
+                    text = "Ano: ${set.releaseYear} • ${set.formattedSetType}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1

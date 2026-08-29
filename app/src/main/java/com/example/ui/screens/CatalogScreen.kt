@@ -317,17 +317,32 @@ fun CatalogScreen(
                                 selectedFranchise = franchise
                                 selectedEdition = "TODAS"
                             },
+                            leadingIcon = {
+                                val icon = when (franchise) {
+                                    "TODOS" -> Icons.Default.Category
+                                    "Pokémon TCG" -> Icons.Default.Bolt
+                                    "Magic: The Gathering" -> Icons.Default.AutoAwesome
+                                    "Yu-Gi-Oh!" -> Icons.Default.Style
+                                    "One Piece Card Game" -> Icons.Default.DirectionsBoat
+                                    "Hot Wheels" -> Icons.Default.DirectionsCar
+                                    "Kaido House" -> Icons.Default.Speed
+                                    "Disney Lorcana" -> Icons.Default.Stars
+                                    "Moedas" -> Icons.Default.MonetizationOn
+                                    else -> Icons.Default.Bookmark
+                                }
+                                Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+                            },
                             label = {
                                 val labelText = when (franchise) {
-                                    "TODOS" -> "🌟 Todas Categorias"
-                                    "Pokémon TCG" -> "⚡ Pokémon"
-                                    "Magic: The Gathering" -> "🧙‍♂️ Magic MTG"
-                                    "Yu-Gi-Oh!" -> "⚔️ Yu-Gi-Oh!"
-                                    "One Piece Card Game" -> "🏴‍☠️ One Piece"
-                                    "Hot Wheels" -> "🏎️ Hot Wheels"
-                                    "Kaido House" -> "🚗 Kaido House"
-                                    "Disney Lorcana" -> "✨ Lorcana"
-                                    "Moedas" -> "🪙 Moedas"
+                                    "TODOS" -> "Todas Categorias"
+                                    "Pokémon TCG" -> "Pokémon"
+                                    "Magic: The Gathering" -> "Magic MTG"
+                                    "Yu-Gi-Oh!" -> "Yu-Gi-Oh!"
+                                    "One Piece Card Game" -> "One Piece"
+                                    "Hot Wheels" -> "Hot Wheels"
+                                    "Kaido House" -> "Kaido House"
+                                    "Disney Lorcana" -> "Lorcana"
+                                    "Moedas" -> "Moedas"
                                     else -> franchise
                                 }
                                 Text(labelText, fontSize = 12.sp, fontWeight = if (selectedFranchise == franchise) FontWeight.Bold else FontWeight.Normal)
@@ -345,9 +360,13 @@ fun CatalogScreen(
                     FilterChip(
                         selected = onlyMissing,
                         onClick = { onlyMissing = !onlyMissing },
-                        label = { Text("🎯 Faltam", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        label = { Text("Faltam", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         leadingIcon = {
-                            if (onlyMissing) Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(
+                                if (onlyMissing) Icons.Default.Check else Icons.Default.TrackChanges,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
                     )
 
@@ -360,7 +379,10 @@ fun CatalogScreen(
                             FilterChip(
                                 selected = selectedYear == year,
                                 onClick = { selectedYear = year },
-                                label = { Text(if (year == "TODOS") "📅 Anos" else year, fontSize = 11.sp) }
+                                leadingIcon = {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(12.dp))
+                                },
+                                label = { Text(if (year == "TODOS") "Anos" else year, fontSize = 11.sp) }
                             )
                         }
                     }
@@ -376,9 +398,12 @@ fun CatalogScreen(
                             FilterChip(
                                 selected = selectedEdition == edition,
                                 onClick = { selectedEdition = edition },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(12.dp))
+                                },
                                 label = {
                                     Text(
-                                        if (edition == "TODAS") "📦 Todas Edições" else "📦 $edition",
+                                        if (edition == "TODAS") "Todas Edições" else edition,
                                         fontSize = 11.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -480,7 +505,7 @@ fun CatalogScreen(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = "Set: [${set.code.uppercase()}] • 📅 Ano: ${set.releaseYear} • ${set.formattedSetType}",
+                                            text = "Set: [${set.code.uppercase()}] • Ano: ${set.releaseYear} • ${set.formattedSetType}",
                                             fontSize = 12.sp,
                                             color = Color(0xFF7E22CE)
                                         )
@@ -679,7 +704,10 @@ fun CatalogScreen(
                                 FilterChip(
                                     selected = mtgSelectedYear == year,
                                     onClick = { mtgSelectedYear = year },
-                                    label = { Text(if (year == "TODOS") "📅 Todos os Anos" else "📅 $year", fontSize = 11.sp) }
+                                    leadingIcon = {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(12.dp))
+                                    },
+                                    label = { Text(if (year == "TODOS") "Todos os Anos" else year, fontSize = 11.sp) }
                                 )
                             }
                         }
@@ -768,13 +796,24 @@ fun CatalogScreen(
                                                         color = Color(0xFF6366F1).copy(alpha = 0.15f),
                                                         shape = RoundedCornerShape(4.dp)
                                                     ) {
-                                                        Text(
-                                                            text = "📅 ${set.releaseYear}",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF4F46E5),
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(3.dp),
                                                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                                        )
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Default.CalendarToday,
+                                                                contentDescription = null,
+                                                                tint = Color(0xFF4F46E5),
+                                                                modifier = Modifier.size(11.dp)
+                                                            )
+                                                            Text(
+                                                                text = set.releaseYear,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color(0xFF4F46E5)
+                                                            )
+                                                        }
                                                     }
                                                     Text(
                                                         text = set.formattedSetType,
@@ -1095,12 +1134,23 @@ fun SetOverviewCard(
                     shape = RoundedCornerShape(6.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
-                    Text(
-                        text = "📅 ${set.year}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Text(
+                            text = set.year,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -1415,14 +1465,25 @@ fun CatalogGridCard(
                             .align(Alignment.TopEnd)
                             .padding(6.dp)
                     ) {
-                        Text(
-                            text = "✓ Possui ($ownedQuantity)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Possui ($ownedQuantity)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -1563,13 +1624,24 @@ fun CatalogListCard(
                             shape = RoundedCornerShape(4.dp),
                             color = Color(0xFF10B981)
                         ) {
-                            Text(
-                                text = "✓ $ownedQuantity",
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Text(
+                                    text = "$ownedQuantity",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

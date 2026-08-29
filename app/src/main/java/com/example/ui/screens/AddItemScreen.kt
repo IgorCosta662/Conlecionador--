@@ -79,11 +79,11 @@ fun AddItemScreen(
 
     // Main Categories Menu
     val mainCategories = listOf(
-        Triple("Trading Cards", "🃏 TCG (Cartas)", Color(0xFF6366F1)),
-        Triple("Carrinhos / Diecast", "🏎️ Diecast (Carros)", Color(0xFFEF4444)),
-        Triple("Action Figures", "🦸 Action Figures", Color(0xFF8B5CF6)),
-        Triple("Moedas", "🪙 Moedas & Cédulas", Color(0xFFF59E0B)),
-        Triple("Outros", "📦 Outros Colecionáveis", Color(0xFF10B981))
+        Triple("Trading Cards", "TCG (Cartas)", Color(0xFF6366F1)),
+        Triple("Carrinhos / Diecast", "Diecast (Carros)", Color(0xFFEF4444)),
+        Triple("Action Figures", "Action Figures", Color(0xFF8B5CF6)),
+        Triple("Moedas", "Moedas & Cédulas", Color(0xFFF59E0B)),
+        Triple("Outros", "Outros Colecionáveis", Color(0xFF10B981))
     )
 
     var category by remember(editingItem) { mutableStateOf(editingItem?.type ?: "Trading Cards") }
@@ -244,7 +244,7 @@ fun AddItemScreen(
         showLiveSuggestions = false
         scryfallLiveMatches = emptyList()
         tcgdexLiveMatches = emptyList()
-        autoFilledFeedback = "✨ Preenchido via Scryfall API: ${scryCard.name} (${scryCard.setName}) • R$ ${String.format(Locale.US, "%.2f", estPrice)}"
+        autoFilledFeedback = "Preenchido via Scryfall API: ${scryCard.name} (${scryCard.setName}) • R$ ${String.format(Locale.US, "%.2f", estPrice)}"
     }
 
     // Apply TCGDex API Card (Pokémon TCG)
@@ -269,7 +269,7 @@ fun AddItemScreen(
             showLiveSuggestions = false
             scryfallLiveMatches = emptyList()
             tcgdexLiveMatches = emptyList()
-            autoFilledFeedback = "✨ Preenchido via TCGDex API: ${name} • R$ ${String.format(Locale.US, "%.2f", estPrice)}"
+            autoFilledFeedback = "Preenchido via TCGDex API: ${name} • R$ ${String.format(Locale.US, "%.2f", estPrice)}"
         }
     }
 
@@ -292,7 +292,7 @@ fun AddItemScreen(
         showLiveSuggestions = false
         scryfallLiveMatches = emptyList()
         tcgdexLiveMatches = emptyList()
-        autoFilledFeedback = "✨ Preenchido automaticamente: ${entry.name} • Cotação Real: R$ ${String.format(Locale.US, "%.2f", entry.realMarketPriceBrl)}"
+        autoFilledFeedback = "Preenchido automaticamente: ${entry.name} • Cotação Real: R$ ${String.format(Locale.US, "%.2f", entry.realMarketPriceBrl)}"
     }
 
     // Popular Presets for One-Tap Fast Fill
@@ -521,7 +521,7 @@ fun AddItemScreen(
         notes = preset.defaultNotes
         tags = preset.tags
         showLiveSuggestions = false
-        autoFilledFeedback = "✨ Preenchido: ${preset.name} (R$ ${String.format(Locale.US, "%.2f", preset.defaultEstValue)})"
+        autoFilledFeedback = "Preenchido: ${preset.name} (R$ ${String.format(Locale.US, "%.2f", preset.defaultEstValue)})"
     }
 
     Scaffold(
@@ -738,15 +738,20 @@ fun AddItemScreen(
                                         fontSize = 13.sp
                                     )
                                 },
-                                leadingIcon = if (isSelected) {
-                                    {
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                leadingIcon = {
+                                    val catIcon = when (catKey) {
+                                        "Trading Cards" -> Icons.Default.Style
+                                        "Carrinhos / Diecast" -> Icons.Default.DirectionsCar
+                                        "Action Figures" -> Icons.Default.AccessibilityNew
+                                        "Moedas" -> Icons.Default.MonetizationOn
+                                        else -> Icons.Default.Inventory2
                                     }
-                                } else null,
+                                    Icon(
+                                        if (isSelected) Icons.Default.Check else catIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = catColor.copy(alpha = 0.2f),
                                     selectedLabelColor = MaterialTheme.colorScheme.onSurface
@@ -919,7 +924,7 @@ fun AddItemScreen(
                                     isLiveSearchingApi = false
                                 }
                             },
-                            label = { Text("🔮 Buscar Magic (Scryfall)", fontSize = 11.sp) },
+                            label = { Text("Buscar Magic (Scryfall)", fontSize = 11.sp) },
                             icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF818CF8)) }
                         )
 
@@ -933,13 +938,13 @@ fun AddItemScreen(
                                     isLiveSearchingApi = false
                                 }
                             },
-                            label = { Text("⚡ Buscar Pokémon (TCGDex)", fontSize = 11.sp) },
+                            label = { Text("Buscar Pokémon (TCGDex)", fontSize = 11.sp) },
                             icon = { Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFF59E0B)) }
                         )
 
                         SuggestionChip(
                             onClick = { showCatalogSheet = true },
-                            label = { Text("📚 Catálogo Geral", fontSize = 11.sp) },
+                            label = { Text("Catálogo Geral", fontSize = 11.sp) },
                             icon = { Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(14.dp)) }
                         )
                     }

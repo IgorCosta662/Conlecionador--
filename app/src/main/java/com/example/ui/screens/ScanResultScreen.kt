@@ -293,13 +293,24 @@ fun ScanResultScreen(
                                     .align(Alignment.TopEnd)
                                     .padding(8.dp)
                             ) {
-                                Text(
-                                    text = if (preferOfficialImage) "✨ Imagem Oficial HD" else "📷 Sua Foto",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = if (preferOfficialImage) Icons.Default.AutoAwesome else Icons.Default.CameraAlt,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = if (preferOfficialImage) "Imagem Oficial HD" else "Sua Foto",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
 

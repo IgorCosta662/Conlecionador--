@@ -64,7 +64,7 @@ fun CoinsScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("🪙", fontSize = 22.sp)
+                        Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                         Text("Moedas & Numismática", fontWeight = FontWeight.Bold)
                     }
                 },
