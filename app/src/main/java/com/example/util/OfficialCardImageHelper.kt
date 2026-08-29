@@ -1,14 +1,77 @@
 package com.example.util
 
+import com.example.api.TcgOnlineService
+import com.example.api.scryfall.ScryfallDataService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 object OfficialCardImageHelper {
 
+    // Common Portuguese to English Magic: The Gathering card name dictionary
+    private val mtgPtToEnMap = mapOf(
+        "lótus negra" to "Black Lotus",
+        "lotus negra" to "Black Lotus",
+        "o um anel" to "The One Ring",
+        "anel solar" to "Sol Ring",
+        "mox de diamante" to "Mox Diamond",
+        "mox diamante" to "Mox Diamond",
+        "mox de safira" to "Mox Sapphire",
+        "mox de rubi" to "Mox Ruby",
+        "mox de azeviche" to "Mox Jet",
+        "mox de esmeralda" to "Mox Emerald",
+        "mox de pérola" to "Mox Pearl",
+        "cópia furtiva" to "Phantasmal Image",
+        "força da vontade" to "Force of Will",
+        "força de vontade" to "Force of Will",
+        "força da negação" to "Force of Negation",
+        "raio" to "Lightning Bolt",
+        "contramágica" to "Counterspell",
+        "passagem lendária" to "Fabled Passage",
+        "tumba dos ancestrais" to "Ancient Tomb",
+        "cidade dos traidores" to "City of Traitors",
+        "berço de gaea" to "Gaea's Cradle",
+        "savana" to "Savannah",
+        "taiga" to "Taiga",
+        "tundra" to "Tundra",
+        "mar subterrâneo" to "Underground Sea",
+        "mar vulcânico" to "Volcanic Island",
+        "pantanal verdejante" to "Verdant Catacombs",
+        "delta poluído" to "Polluted Delta",
+        "praia inundada" to "Flooded Strand",
+        "sopé da montanha arborizado" to "Wooded Foothills",
+        "planalto árido" to "Arid Mesa",
+        "charneca escaldante" to "Scalding Tarn",
+        "floresta tropical enevoada" to "Misty Rainforest",
+        "pântano ensanguentado" to "Bloodstained Mire",
+        "estepe árida" to "Windswept Heath",
+        "várzea pantanosa" to "Marsh Flats",
+        "terreno pisoteável" to "Stomping Ground",
+        "fonte de água benta" to "Hallowed Fountain",
+        "túmulo alagado" to "Watery Grave",
+        "cripta de sangue" to "Blood Crypt",
+        "chaminé de vapor" to "Steam Vents",
+        "pântano" to "Swamp",
+        "floresta" to "Forest",
+        "ilha" to "Island",
+        "montanha" to "Mountain",
+        "planície" to "Plains",
+        "jace, o escultor de mentes" to "Jace, the Mind Sculptor",
+        "liliana do véu" to "Liliana of the Veil",
+        "carniceiro de karn" to "Karn Liberated",
+        "urgoroth" to "Ulamog, the Infinite Gyre",
+        "emrakul" to "Emrakul, the Aeons Torn",
+        "ragavan" to "Ragavan, Nimble Pilferer",
+        "sheoldred" to "Sheoldred, the Apocalypse",
+        "atraxa" to "Atraxa, Grand Unifier"
+    )
+
     /**
-     * Complete Pokedex mapping for Gen 1 (1-151) and iconic Pokémon across all generations.
+     * Comprehensive Pokédex mapping covering Gen 1 to Gen 9 + iconic forms
      */
     private val pokemonDexMap: Map<String, Int> = mapOf(
+        // Gen 1 (1 - 151)
         "bulbasaur" to 1, "ivysaur" to 2, "venusaur" to 3,
         "charmander" to 4, "charmeleon" to 5, "charizard" to 6,
         "squirtle" to 7, "wartortle" to 8, "blastoise" to 9,
@@ -83,42 +146,150 @@ object OfficialCardImageHelper {
         "articuno" to 144, "zapdos" to 145, "moltres" to 146,
         "dratini" to 147, "dragonair" to 148, "dragonite" to 149,
         "mewtwo" to 150, "mew" to 151,
-        // Gen 2
-        "chikorita" to 152, "cyndaquil" to 155, "totodile" to 158,
-        "togepi" to 175, "ampharos" to 181, "marill" to 183,
-        "espeon" to 196, "umbreon" to 197, "scizor" to 212, "tyranitar" to 248,
-        "lugia" to 249, "ho-oh" to 250, "celebi" to 251,
-        // Gen 3
-        "treecko" to 252, "torchic" to 255, "mudkip" to 258,
-        "gardevoir" to 282, "milotic" to 350, "rayquaza" to 384,
-        "kyogre" to 382, "groudon" to 383, "latias" to 380, "latios" to 381,
-        // Gen 4
-        "turtwig" to 387, "chimchar" to 390, "piplup" to 393,
-        "lucario" to 448, "garchomp" to 445, "dialga" to 483, "palkia" to 484, "giratina" to 487, "arceus" to 493,
-        // Gen 5
-        "snivy" to 495, "tepig" to 498, "oshawott" to 501, "zoroark" to 571, "hydreigon" to 635,
-        // Gen 6
-        "froakie" to 656, "frogadier" to 657, "greninja" to 658, "sylveon" to 700, "zygarde" to 718,
-        // Gen 7
-        "rowlet" to 722, "litten" to 725, "popplio" to 728, "mimikyu" to 778, "necrozma" to 800,
-        // Gen 8
-        "grookey" to 810, "scorbunny" to 813, "sobble" to 816, "zacian" to 888, "zamazenta" to 889,
-        // Gen 9
+
+        // Gen 2 (152 - 251)
+        "chikorita" to 152, "bayleef" to 153, "meganium" to 154,
+        "cyndaquil" to 155, "quilava" to 156, "typhlosion" to 157,
+        "totodile" to 158, "croconaw" to 159, "feraligatr" to 160,
+        "sentret" to 161, "furret" to 162, "hoothoot" to 163, "noctowl" to 164,
+        "crobat" to 169, "chinchou" to 170, "lanturn" to 171,
+        "pichu" to 172, "cleffa" to 173, "igglybuff" to 174,
+        "togepi" to 175, "togetic" to 176,
+        "natu" to 177, "xatu" to 178, "mareep" to 179, "flaaffy" to 180, "ampharos" to 181,
+        "marill" to 183, "azumarill" to 184, "sudowoodo" to 185,
+        "espeon" to 196, "umbreon" to 197, "murkrow" to 198, "slowking" to 199,
+        "misdreavus" to 200, "unown" to 201, "wobbuffet" to 202,
+        "steelix" to 208, "scizor" to 212, "shuckle" to 213, "heracross" to 214,
+        "sneasel" to 215, "teddiursa" to 216, "ursaring" to 217,
+        "swinub" to 220, "piloswine" to 221, "corsola" to 222,
+        "skarmory" to 227, "houndour" to 228, "houndoom" to 229,
+        "kingdra" to 230, "donphan" to 232, "porygon2" to 233,
+        "smeargle" to 235, "tyrogue" to 236, "hitmontop" to 237,
+        "elekid" to 239, "magby" to 240, "blissey" to 242,
+        "raikou" to 243, "entei" to 244, "suicune" to 245,
+        "larvitar" to 246, "pupitar" to 247, "tyranitar" to 248,
+        "lugia" to 249, "ho-oh" to 250, "ho oh" to 250, "celebi" to 251,
+
+        // Gen 3 (252 - 386)
+        "treecko" to 252, "grovyle" to 253, "sceptile" to 254,
+        "torchic" to 255, "combusken" to 256, "blaziken" to 257,
+        "mudkip" to 258, "marshtomp" to 259, "swampert" to 260,
+        "poochyena" to 261, "mightyena" to 262, "zigzagoon" to 263, "linoone" to 264,
+        "ralts" to 280, "kirlia" to 281, "gardevoir" to 282, "gallade" to 475,
+        "slakoth" to 287, "vigoroth" to 288, "slaking" to 289,
+        "shedinja" to 292, "exploud" to 295, "sableye" to 302, "mawile" to 303,
+        "aggron" to 306, "medicham" to 308, "manectric" to 310,
+        "wailmer" to 320, "wailord" to 321, "torkoal" to 324, "flygon" to 330,
+        "altaria" to 334, "zangoose" to 335, "seviper" to 336,
+        "milotic" to 350, "castform" to 351, "banette" to 354, "duskull" to 355, "dusclops" to 356,
+        "absol" to 359, "snorunt" to 361, "glalie" to 362, "walrein" to 365,
+        "bagon" to 371, "shelgon" to 372, "salamence" to 373,
+        "beldum" to 374, "metang" to 375, "metagross" to 376,
+        "regirock" to 377, "regice" to 378, "registeel" to 379,
+        "latias" to 380, "latios" to 381,
+        "kyogre" to 382, "groudon" to 383, "rayquaza" to 384,
+        "jirachi" to 385, "deoxys" to 386,
+
+        // Gen 4 (387 - 493)
+        "turtwig" to 387, "grotle" to 388, "torterra" to 389,
+        "chimchar" to 390, "monferno" to 391, "infernape" to 392,
+        "piplup" to 393, "prinplup" to 394, "empoleon" to 395,
+        "staraptor" to 398, "luxray" to 405, "roserade" to 407, "rampardos" to 409,
+        "garchomp" to 445, "lucario" to 448, "riolu" to 447, "hippowdon" to 450, "drapion" to 452, "toxicroak" to 454,
+        "abomasnow" to 460, "weavile" to 461, "magnezone" to 462, "rhyperior" to 464,
+        "electivire" to 466, "magmortar" to 467, "togekiss" to 468, "yanmega" to 469,
+        "leafeon" to 470, "glaceon" to 471, "gliscor" to 472, "mamoswine" to 473, "porygon-z" to 474,
+        "dusknoir" to 477, "froslass" to 478, "rotom" to 479,
+        "uxie" to 480, "mesprit" to 481, "azelf" to 482,
+        "dialga" to 483, "palkia" to 484, "heatran" to 485, "regigigas" to 486,
+        "giratina" to 487, "cresselia" to 488, "phione" to 489, "manaphy" to 490,
+        "darkrai" to 491, "shaymin" to 492, "arceus" to 493,
+
+        // Gen 5 (494 - 649)
+        "victini" to 494, "snivy" to 495, "servine" to 496, "serperior" to 497,
+        "tepig" to 498, "pignite" to 499, "emboar" to 500,
+        "oshawott" to 501, "dewott" to 502, "samurott" to 503,
+        "excadrill" to 530, "conkeldurr" to 534, "krookodile" to 553,
+        "zoroark" to 571, "zorua" to 570, "cinccino" to 573, "reuniclus" to 579,
+        "chandelure" to 609, "haxorus" to 612, "hydreigon" to 635, "volcarona" to 637,
+        "cobalion" to 638, "terrakion" to 639, "virizion" to 640,
+        "tornadus" to 641, "thundurus" to 642, "reshiram" to 643, "zekrom" to 644,
+        "landorus" to 645, "kyurem" to 646, "keldeo" to 647, "meloetta" to 648, "genesect" to 649,
+
+        // Gen 6 (650 - 721)
+        "chespin" to 650, "quilladin" to 651, "chesnaught" to 652,
+        "fennekin" to 653, "braixen" to 654, "delphox" to 655,
+        "froakie" to 656, "frogadier" to 657, "greninja" to 658,
+        "talonflame" to 663, "aegislash" to 681, "sylveon" to 700, "hawlucha" to 701, "goodra" to 706,
+        "noivern" to 715, "xerneas" to 716, "yveltal" to 717, "zygarde" to 718, "diancie" to 719, "hoopa" to 720, "volcanion" to 721,
+
+        // Gen 7 (722 - 809)
+        "rowlet" to 722, "dartrix" to 723, "decidueye" to 724,
+        "litten" to 725, "torracat" to 726, "incineroar" to 727,
+        "popplio" to 728, "brionne" to 729, "primarina" to 730,
+        "vikavolt" to 738, "lycanroc" to 745, "toxapex" to 748, "salazzle" to 758,
+        "mimikyu" to 778, "dhelmise" to 781, "kommo-o" to 784,
+        "tapu koko" to 785, "tapu lele" to 786, "tapu bulu" to 787, "tapu fini" to 788,
+        "solgaleo" to 791, "lunala" to 792, "nihilego" to 793, "buzzwole" to 794,
+        "kartana" to 798, "necrozma" to 800, "magearna" to 801, "marshadow" to 802, "zeraora" to 807,
+
+        // Gen 8 (810 - 905)
+        "grookey" to 810, "thwackey" to 811, "rillaboom" to 812,
+        "scorbunny" to 813, "raboot" to 814, "cinderace" to 815,
+        "sobble" to 816, "drizzile" to 817, "inteleon" to 818,
+        "corviknight" to 823, "orbeetle" to 826, "toxtricity" to 849, "centiskorch" to 851,
+        "grimmsnarl" to 861, "obstagoon" to 862, "sirfetch'd" to 865, "frosmoth" to 873, "dragapult" to 887,
+        "zacian" to 888, "zamazenta" to 889, "eternatus" to 890, "kubfu" to 891, "urshifu" to 892,
+        "zarude" to 893, "regieleki" to 894, "regidrago" to 895, "glastrier" to 896, "spectrier" to 897, "calyrex" to 898,
+
+        // Gen 9 (906 - 1025)
         "sprigatito" to 906, "floragato" to 907, "meowscarada" to 908,
         "fuecoco" to 909, "crocalor" to 910, "skeledirge" to 911,
         "quaxly" to 912, "quaxwell" to 913, "quaquaval" to 914,
-        "armarouge" to 936, "ceruledge" to 937,
-        "tinkatink" to 957, "tinkaton" to 959,
+        "pawmi" to 921, "pawmo" to 922, "pawmot" to 923,
+        "garganacl" to 934, "armarouge" to 936, "ceruledge" to 937, "bellibolt" to 939,
+        "tinkatink" to 957, "tinkatuff" to 958, "tinkaton" to 959,
+        "palafin" to 964, "kingambit" to 983,
+        "great tusk" to 984, "scream tail" to 985, "brute bonnet" to 986, "flutter mane" to 987,
+        "slither wing" to 988, "sandy shocks" to 989, "iron treads" to 990, "iron bundle" to 991,
+        "iron hands" to 992, "iron jugulis" to 993, "iron moth" to 994, "iron thorns" to 995,
+        "baxcalibur" to 998, "gholdengo" to 1000,
+        "roaring moon" to 1005, "iron valiant" to 1006,
         "koraidon" to 1007, "miraidon" to 1008,
-        "ogerpon" to 1017, "terapagos" to 1024, "pecharunt" to 1025
+        "walking wake" to 1009, "iron leaves" to 1010,
+        "chien-pao" to 1002, "ting-lu" to 1003, "wo-chien" to 1001, "chi-yu" to 1004,
+        "ogerpon" to 1017, "gouging fire" to 1020, "raging bolt" to 1021, "iron boulder" to 1022, "iron crown" to 1023,
+        "terapagos" to 1024, "pecharunt" to 1025
     )
 
     /**
-     * Extracts pure Pokémon name from a card title (e.g. "Charizard ex SIR" -> "charizard")
+     * Determines franchise from all metadata fields with high accuracy
+     */
+    fun detectFranchise(name: String, subCategory: String, collection: String): String {
+        val s = "${subCategory.lowercase()} ${collection.lowercase()} ${name.lowercase()}"
+        return when {
+            s.contains("magic") || s.contains("mtg") || s.contains("scryfall") || s.contains("gathering") -> "Magic: The Gathering"
+            s.contains("pokemon") || s.contains("pokémon") || s.contains("tcgdex") || s.contains("pokedex") || s.contains("pikachu") || s.contains("charizard") -> "Pokémon TCG"
+            s.contains("yu-gi-oh") || s.contains("yugioh") || s.contains("ygoprodeck") || s.contains("konami") -> "Yu-Gi-Oh!"
+            s.contains("one piece") || s.contains("optcg") || s.contains("luffy") -> "One Piece Card Game"
+            s.contains("lorcana") || s.contains("disney") -> "Disney Lorcana"
+            s.contains("star wars") -> "Star Wars: Unlimited"
+            s.contains("dragon ball") || s.contains("dbs") || s.contains("fusion world") -> "Dragon Ball Super"
+            s.contains("hot wheels") || s.contains("diecast") || s.contains("kaido") || s.contains("matchbox") || s.contains("mini gt") || s.contains("carrinho") -> "Hot Wheels"
+            s.contains("moeda") || s.contains("numismat") || s.contains("cédula") || s.contains("real") || s.contains("cruzeiro") -> "Moedas"
+            s.contains("figure") || s.contains("funko") || s.contains("nendoroid") || s.contains("boneco") -> "Action Figures"
+            else -> subCategory.ifBlank { "Trading Cards" }
+        }
+    }
+
+    /**
+     * Extracts pure Pokémon name from a card title (e.g. "Charizard ex SIR #199/165" -> "charizard")
      */
     fun extractPokemonName(fullName: String): String? {
         val lower = fullName.lowercase()
             .replace(Regex("\\(.*\\)"), "")
+            .replace(Regex("\\[.*\\]"), "")
+            .replace(Regex("#[0-9/]+"), "")
             .replace(" ex", "")
             .replace(" vmax", "")
             .replace(" vstar", "")
@@ -128,16 +299,39 @@ object OfficialCardImageHelper {
             .replace(" sir", "")
             .replace(" hr", "")
             .replace(" ur", "")
+            .replace(" sar", "")
+            .replace(" ar", "")
+            .replace(" ir", "")
             .replace(" star", "")
             .replace(" shiny", "")
+            .replace(" secret", "")
+            .replace(" holo", "")
+            .replace(" foil", "")
+            .replace(" illustration", "")
+            .replace(" rare", "")
             .trim()
 
-        // Check exact or partial matches
+        // 1. Direct match in dictionary
+        if (pokemonDexMap.containsKey(lower)) {
+            return lower
+        }
+
+        // 2. Tokenized word match
+        val words = lower.split(" ", "-", "_", "/")
+        for (word in words) {
+            val cleanWord = word.trim()
+            if (cleanWord.length >= 3 && pokemonDexMap.containsKey(cleanWord)) {
+                return cleanWord
+            }
+        }
+
+        // 3. Substring match
         for ((pName, _) in pokemonDexMap) {
-            if (lower.contains(pName) || pName.contains(lower)) {
+            if (lower.contains(pName) || (pName.length > 4 && pName.contains(lower))) {
                 return pName
             }
         }
+
         return null
     }
 
@@ -151,9 +345,35 @@ object OfficialCardImageHelper {
     }
 
     /**
-     * Generates or returns a high-resolution, crystal-clear official card image URL
-     * based on franchise (Magic: The Gathering, Pokémon TCG, Yu-Gi-Oh!, One Piece, Hot Wheels, Disney Lorcana).
-     * If card image is not found or fails, provides the exact official Pokémon artwork!
+     * Cleans Magic: The Gathering card name and translates PT -> EN if needed for Scryfall
+     */
+    fun getCleanMtgCardName(name: String): String {
+        val lowerRaw = name.lowercase().trim()
+        val withoutParens = lowerRaw
+            .replace(Regex("\\(.*\\)"), "")
+            .replace(Regex("\\[.*\\]"), "")
+            .replace(Regex("#[0-9/]+"), "")
+            .split("//")[0]
+            .trim()
+
+        // Translate Portuguese name if known
+        mtgPtToEnMap[withoutParens]?.let { return it }
+        for ((ptKey, enVal) in mtgPtToEnMap) {
+            if (withoutParens.contains(ptKey) || ptKey.contains(withoutParens)) {
+                return enVal
+            }
+        }
+
+        return name
+            .replace(Regex("\\(.*\\)"), "")
+            .replace(Regex("\\[.*\\]"), "")
+            .replace(Regex("#[0-9/]+"), "")
+            .split("//")[0]
+            .trim()
+    }
+
+    /**
+     * Synchronously returns a high-resolution, valid direct image URL for the item.
      */
     fun getOfficialImageUrl(
         name: String,
@@ -162,99 +382,99 @@ object OfficialCardImageHelper {
         itemNumber: String = ""
     ): String {
         val cleanName = name.trim()
-        val cleanSub = subCategory.trim().lowercase()
+        val franchise = detectFranchise(cleanName, subCategory, collection)
 
-        return when {
-            // 1. MAGIC: THE GATHERING -> Scryfall official API image redirect
-            cleanSub.contains("magic") || cleanSub.contains("mtg") -> {
-                val cardNameOnly = cleanName
-                    .replace(Regex("\\(.*\\)"), "")
-                    .replace("#", "")
-                    .split("//")[0]
-                    .trim()
-                val scryfallQuery = try {
-                    URLEncoder.encode(cardNameOnly, StandardCharsets.UTF_8.toString())
-                } catch (e: Exception) {
-                    cardNameOnly
+        return when (franchise) {
+            "Magic: The Gathering" -> {
+                val cleanMtgName = getCleanMtgCardName(cleanName)
+                val encodedQuery = try {
+                    URLEncoder.encode(cleanMtgName, StandardCharsets.UTF_8.toString())
+                } catch (_: Exception) {
+                    cleanMtgName
                 }
-                "https://api.scryfall.com/cards/named?exact=$scryfallQuery&format=image&version=large"
+                // Scryfall fuzzy endpoint with 302 redirect directly to large image
+                "https://api.scryfall.com/cards/named?fuzzy=$encodedQuery&format=image&version=large"
             }
 
-            // 2. POKÉMON TCG -> High-res official Pokémon Card images & Official Artwork Fallback
-            cleanSub.contains("pokémon") || cleanSub.contains("pokemon") -> {
+            "Pokémon TCG" -> {
                 getPokemonCardImageUrl(cleanName, collection, itemNumber)
             }
 
-            // 3. YU-GI-OH! -> YGOPRODeck official HD Card CDN
-            cleanSub.contains("yu-gi-oh") || cleanSub.contains("yugioh") -> {
+            "Yu-Gi-Oh!" -> {
                 val yugiohName = cleanName
                     .replace(Regex("\\(.*\\)"), "")
+                    .replace(Regex("\\[.*\\]"), "")
+                    .replace(Regex("#[0-9/]+"), "")
                     .trim()
                 val encodedYgo = try {
                     URLEncoder.encode(yugiohName, StandardCharsets.UTF_8.toString())
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     yugiohName
                 }
                 "https://images.ygoprodeck.com/images/cards_cropped/$encodedYgo.jpg"
             }
 
-            // 4. ONE PIECE CARD GAME -> OP TCG Official Card Art CDN
-            cleanSub.contains("one piece") -> {
-                getOnePieceImageUrl(cleanName)
-            }
-
-            // 5. DISNEY LORCANA
-            cleanSub.contains("lorcana") || cleanSub.contains("disney") -> {
-                getLorcanaImageUrl(cleanName)
-            }
-
-            // 6. STAR WARS: UNLIMITED
-            cleanSub.contains("star wars") -> {
-                getStarWarsImageUrl(cleanName)
-            }
-
-            // 7. DRAGON BALL SUPER / FUSION WORLD
-            cleanSub.contains("dragon ball") || cleanSub.contains("dbs") -> {
-                getDragonBallImageUrl(cleanName)
-            }
-
-            // 8. HOT WHEELS / DIECAST
-            cleanSub.contains("hot wheels") || cleanSub.contains("diecast") || cleanSub.contains("kaido") || cleanSub.contains("carrinho") -> {
-                getDiecastImageUrl(cleanName)
-            }
-
-            // 9. MOEDAS & NUMISMÁTICA
-            cleanSub.contains("moeda") || cleanSub.contains("numismática") -> {
-                getMoedaImageUrl(cleanName)
-            }
-
-            // DEFAULT -> Official Pokémon Artwork
-            else -> {
-                getPokemonArtworkUrl(cleanName)
-            }
+            "One Piece Card Game" -> getOnePieceImageUrl(cleanName)
+            "Disney Lorcana" -> getLorcanaImageUrl(cleanName)
+            "Star Wars: Unlimited" -> getStarWarsImageUrl(cleanName)
+            "Dragon Ball Super" -> getDragonBallImageUrl(cleanName)
+            "Hot Wheels" -> getDiecastImageUrl(cleanName)
+            "Moedas" -> getMoedaImageUrl(cleanName)
+            else -> getPokemonArtworkUrl(cleanName)
         }
     }
 
-    private fun getStarWarsImageUrl(name: String): String {
-        val lower = name.lowercase()
-        return when {
-            lower.contains("vader") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_010.png"
-            lower.contains("luke") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_005.png"
-            lower.contains("boba") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_015.png"
-            lower.contains("mandalorian") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SHD_001.png"
-            lower.contains("ahsoka") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/TWI_003.png"
-            else -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_010.png"
-        }
-    }
+    /**
+     * Asynchronously queries live web APIs (Scryfall API for Magic, TCGDex API for Pokémon)
+     * to fetch the exact official card image URL.
+     */
+    suspend fun searchOfficialImageOnline(
+        name: String,
+        subCategory: String,
+        collection: String = "",
+        itemNumber: String = ""
+    ): String? = withContext(Dispatchers.IO) {
+        val cleanName = name.trim()
+        val franchise = detectFranchise(cleanName, subCategory, collection)
 
-    private fun getDragonBallImageUrl(name: String): String {
-        val lower = name.lowercase()
-        return when {
-            lower.contains("goku") -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB01-139_p1.png"
-            lower.contains("vegito") -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB02-140_p1.png"
-            lower.contains("vegeta") -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB01-035_p1.png"
-            else -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB01-139_p1.png"
-        }
+        try {
+            when (franchise) {
+                "Magic: The Gathering" -> {
+                    val cleanMtgName = getCleanMtgCardName(cleanName)
+                    // 1. Try Scryfall fuzzy search
+                    val fuzzyCard = ScryfallDataService.findCardByFuzzyName(cleanMtgName)
+                    if (fuzzyCard?.imageUris?.large?.isNotBlank() == true) {
+                        return@withContext fuzzyCard.imageUris.large
+                    }
+                    if (fuzzyCard?.imageUris?.normal?.isNotBlank() == true) {
+                        return@withContext fuzzyCard.imageUris.normal
+                    }
+
+                    // 2. Try general search
+                    val searchResults = ScryfallDataService.searchCardsByName(cleanMtgName, maxResults = 3)
+                    val match = searchResults.firstOrNull { it.imageUris?.large?.isNotBlank() == true || it.imageUris?.normal?.isNotBlank() == true }
+                    if (match != null) {
+                        return@withContext match.imageUris?.large ?: match.imageUris?.normal
+                    }
+                }
+
+                "Pokémon TCG" -> {
+                    // Query TCGDex API
+                    val searchResults = TcgOnlineService.searchPokemonCards(cleanName)
+                    val match = searchResults.firstOrNull { it.image != null && it.image.isNotBlank() }
+                    if (match != null) {
+                        val cardDetail = TcgOnlineService.getPokemonCardDetail(match.id)
+                        if (cardDetail?.image != null && cardDetail.image.isNotBlank()) {
+                            return@withContext "${cardDetail.image}/high.webp"
+                        }
+                        return@withContext "${match.image}/high.webp"
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Fallback to static URL resolver
+        return@withContext getOfficialImageUrl(name, subCategory, collection, itemNumber)
     }
 
     private fun getPokemonCardImageUrl(name: String, collection: String, number: String): String {
@@ -267,116 +487,88 @@ object OfficialCardImageHelper {
             lowerCol.contains("base") || lowerCol.contains("1999") -> {
                 val baseNum = numOnly.toIntOrNull()
                 if (baseNum != null && baseNum in 1..102) {
-                    "https://images.pokemontcg.io/base1/${baseNum}_hires.png"
+                    "https://assets.tcgdex.net/en/base/base1/$baseNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // 151 specific cards (1 to 207)
+            // 151 (Scarlet & Violet: 151)
             lowerCol.contains("151") -> {
                 val intNum = numOnly.toIntOrNull()
                 if (intNum != null && intNum in 1..207) {
-                    "https://images.pokemontcg.io/sv3pt5/${intNum}_hires.png"
+                    "https://assets.tcgdex.net/en/sv/sv03.5/$intNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // Surging Sparks
-            lowerCol.contains("surging") || lowerCol.contains("sparks") -> {
+            // Surging Sparks (sv08)
+            lowerCol.contains("surging") || lowerCol.contains("sparks") || lowerCol.contains("faíscas") -> {
                 val intNum = numOnly.toIntOrNull()
-                if (intNum != null && intNum in 1..250) {
-                    "https://images.pokemontcg.io/sv8/${intNum}_hires.png"
+                if (intNum != null && intNum in 1..252) {
+                    "https://assets.tcgdex.net/en/sv/sv08/$intNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // Twilight Masquerade
-            lowerCol.contains("twilight") || lowerCol.contains("masquerade") -> {
+            // Twilight Masquerade (sv06)
+            lowerCol.contains("twilight") || lowerCol.contains("masquerade") || lowerCol.contains("máscaras") -> {
                 val intNum = numOnly.toIntOrNull()
                 if (intNum != null && intNum in 1..226) {
-                    "https://images.pokemontcg.io/sv6/${intNum}_hires.png"
+                    "https://assets.tcgdex.net/en/sv/sv06/$intNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // Paldea Evolved
-            lowerCol.contains("paldea evolved") || lowerCol.contains("paldea") -> {
+            // Paldea Evolved (sv02)
+            lowerCol.contains("paldea evolved") || lowerCol.contains("evoluções em paldea") -> {
                 val intNum = numOnly.toIntOrNull()
                 if (intNum != null && intNum in 1..279) {
-                    "https://images.pokemontcg.io/sv2/${intNum}_hires.png"
+                    "https://assets.tcgdex.net/en/sv/sv02/$intNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // Scarlet & Violet Base
-            lowerCol.contains("scarlet") && lowerCol.contains("violet") -> {
-                val intNum = numOnly.toIntOrNull()
-                if (intNum != null && intNum in 1..258) {
-                    "https://images.pokemontcg.io/sv1/${intNum}_hires.png"
-                } else {
-                    getPokemonArtworkUrl(name)
-                }
-            }
-            // Evolving Skies
-            lowerCol.contains("evolving") || lowerCol.contains("skies") -> {
+            // Evolving Skies (swsh07)
+            lowerCol.contains("evolving") || lowerCol.contains("skies") || lowerCol.contains("céus em evolução") -> {
                 val intNum = numOnly.toIntOrNull()
                 if (intNum != null && intNum in 1..237) {
-                    "https://images.pokemontcg.io/swsh7/${intNum}_hires.png"
+                    "https://assets.tcgdex.net/en/swsh/swsh07/$intNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // Crown Zenith
-            lowerCol.contains("crown") || lowerCol.contains("zenith") -> {
+            // Crown Zenith (swsh12.5)
+            lowerCol.contains("crown") || lowerCol.contains("zenith") || lowerCol.contains("zênite régio") -> {
                 val intNum = numOnly.toIntOrNull()
                 if (intNum != null && intNum in 1..230) {
-                    "https://images.pokemontcg.io/swsh12pt5/${intNum}_hires.png"
+                    "https://assets.tcgdex.net/en/swsh/swsh12.5/$intNum/high.webp"
                 } else {
                     getPokemonArtworkUrl(name)
                 }
             }
-            // Team Up
-            lowerCol.contains("team up") -> {
-                val intNum = numOnly.toIntOrNull()
-                if (intNum != null && intNum in 1..196) {
-                    "https://images.pokemontcg.io/sm9/${intNum}_hires.png"
-                } else {
-                    getPokemonArtworkUrl(name)
-                }
-            }
-            // Celebrations
-            lowerCol.contains("celebrations") -> {
-                val intNum = numOnly.toIntOrNull()
-                if (intNum != null && intNum in 1..25) {
-                    "https://images.pokemontcg.io/cel25/${intNum}_hires.png"
-                } else {
-                    getPokemonArtworkUrl(name)
-                }
-            }
+
             // Key iconic direct card matches
-            lowerName.contains("charizard") && lowerName.contains("sir") -> "https://images.pokemontcg.io/sv3pt5/199_hires.png"
-            lowerName.contains("charizard") && lowerName.contains("base") -> "https://images.pokemontcg.io/base1/4_hires.png"
-            lowerName.contains("charizard") -> "https://images.pokemontcg.io/sv3pt5/199_hires.png"
-            lowerName.contains("blastoise") && lowerName.contains("sir") -> "https://images.pokemontcg.io/sv3pt5/200_hires.png"
-            lowerName.contains("blastoise") -> "https://images.pokemontcg.io/sv3pt5/9_hires.png"
-            lowerName.contains("venusaur") && lowerName.contains("sir") -> "https://images.pokemontcg.io/sv3pt5/198_hires.png"
-            lowerName.contains("venusaur") -> "https://images.pokemontcg.io/sv3pt5/3_hires.png"
-            lowerName.contains("pikachu") && lowerName.contains("sir") -> "https://images.pokemontcg.io/sv8/204_hires.png"
-            lowerName.contains("pikachu") && lowerName.contains("illustration") -> "https://images.pokemontcg.io/sv3pt5/173_hires.png"
-            lowerName.contains("pikachu") -> "https://images.pokemontcg.io/sv3pt5/25_hires.png"
-            lowerName.contains("umbreon") && (lowerName.contains("moonbreon") || lowerName.contains("vmax")) -> "https://images.pokemontcg.io/swsh7/215_hires.png"
-            lowerName.contains("umbreon") -> "https://images.pokemontcg.io/swsh7/215_hires.png"
-            lowerName.contains("rayquaza") -> "https://images.pokemontcg.io/swsh7/218_hires.png"
-            lowerName.contains("gengar") -> "https://images.pokemontcg.io/sv3pt5/94_hires.png"
-            lowerName.contains("giratina") -> "https://images.pokemontcg.io/swsh12pt5/GG69_hires.png"
-            lowerName.contains("lugia") -> "https://images.pokemontcg.io/swsh12/186_hires.png"
-            lowerName.contains("greninja") -> "https://images.pokemontcg.io/sv6/214_hires.png"
-            lowerName.contains("mewtwo") -> "https://images.pokemontcg.io/sv3pt5/150_hires.png"
-            lowerName.contains("mew") -> "https://images.pokemontcg.io/sv3pt5/205_hires.png"
-            // Fallback: If not recognized or if online card is not specific, return the pure official Pokémon artwork!
-            else -> {
-                getPokemonArtworkUrl(name)
-            }
+            lowerName.contains("charizard") && (lowerName.contains("sir") || lowerName.contains("199")) -> "https://assets.tcgdex.net/en/sv/sv03.5/199/high.webp"
+            lowerName.contains("charizard") && lowerName.contains("base") -> "https://assets.tcgdex.net/en/base/base1/4/high.webp"
+            lowerName.contains("charizard") -> "https://assets.tcgdex.net/en/sv/sv03.5/199/high.webp"
+            lowerName.contains("blastoise") && (lowerName.contains("sir") || lowerName.contains("200")) -> "https://assets.tcgdex.net/en/sv/sv03.5/200/high.webp"
+            lowerName.contains("blastoise") -> "https://assets.tcgdex.net/en/sv/sv03.5/009/high.webp"
+            lowerName.contains("venusaur") && (lowerName.contains("sir") || lowerName.contains("198")) -> "https://assets.tcgdex.net/en/sv/sv03.5/198/high.webp"
+            lowerName.contains("venusaur") -> "https://assets.tcgdex.net/en/sv/sv03.5/003/high.webp"
+            lowerName.contains("pikachu") && (lowerName.contains("sir") || lowerName.contains("204")) -> "https://assets.tcgdex.net/en/sv/sv08/204/high.webp"
+            lowerName.contains("pikachu") && lowerName.contains("173") -> "https://assets.tcgdex.net/en/sv/sv03.5/173/high.webp"
+            lowerName.contains("pikachu") -> "https://assets.tcgdex.net/en/sv/sv03.5/025/high.webp"
+            lowerName.contains("umbreon") && (lowerName.contains("moonbreon") || lowerName.contains("vmax") || lowerName.contains("215")) -> "https://assets.tcgdex.net/en/swsh/swsh07/215/high.webp"
+            lowerName.contains("umbreon") -> "https://assets.tcgdex.net/en/swsh/swsh07/215/high.webp"
+            lowerName.contains("rayquaza") -> "https://assets.tcgdex.net/en/swsh/swsh07/218/high.webp"
+            lowerName.contains("gengar") -> "https://assets.tcgdex.net/en/sv/sv03.5/094/high.webp"
+            lowerName.contains("lugia") -> "https://assets.tcgdex.net/en/swsh/swsh12/186/high.webp"
+            lowerName.contains("greninja") -> "https://assets.tcgdex.net/en/sv/sv06/214/high.webp"
+            lowerName.contains("mewtwo") -> "https://assets.tcgdex.net/en/sv/sv03.5/150/high.webp"
+            lowerName.contains("mew") -> "https://assets.tcgdex.net/en/sv/sv03.5/205/high.webp"
+
+            // Fallback: Official crystal-clear Pokemon artwork
+            else -> getPokemonArtworkUrl(name)
         }
     }
 
@@ -404,6 +596,28 @@ object OfficialCardImageHelper {
             lower.contains("belle") -> "https://images.weserv.nl/?url=https://lorcania.com/images/cards/the-first-chapter/210-belle-strange-but-special.jpg"
             lower.contains("cinderella") -> "https://images.weserv.nl/?url=https://lorcania.com/images/cards/rise-of-the-floodborn/205-cinderella-stouthearted.jpg"
             else -> "https://images.weserv.nl/?url=https://lorcania.com/images/cards/the-first-chapter/207-elsa-spirit-of-winter.jpg"
+        }
+    }
+
+    private fun getStarWarsImageUrl(name: String): String {
+        val lower = name.lowercase()
+        return when {
+            lower.contains("vader") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_010.png"
+            lower.contains("luke") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_005.png"
+            lower.contains("boba") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_015.png"
+            lower.contains("mandalorian") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SHD_001.png"
+            lower.contains("ahsoka") -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/TWI_003.png"
+            else -> "https://images.weserv.nl/?url=https://cdn.starwarsunlimited.com/card-images/SOR_010.png"
+        }
+    }
+
+    private fun getDragonBallImageUrl(name: String): String {
+        val lower = name.lowercase()
+        return when {
+            lower.contains("goku") -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB01-139_p1.png"
+            lower.contains("vegito") -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB02-140_p1.png"
+            lower.contains("vegeta") -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB01-035_p1.png"
+            else -> "https://images.weserv.nl/?url=https://www.dbs-cardgame.com/fusionworld/images/cardlist/card/FB01-139_p1.png"
         }
     }
 
@@ -453,4 +667,3 @@ object OfficialCardImageHelper {
         }
     }
 }
-

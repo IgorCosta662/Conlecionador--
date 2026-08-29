@@ -5,6 +5,7 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -45,6 +46,8 @@ import com.example.api.TcgdexCardBrief
 import com.example.api.TcgOnlineService
 import com.example.data.*
 import com.example.ui.CollectorViewModel
+import com.example.util.CardEffectTranslator
+import com.example.util.OfficialCardImageHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -165,6 +168,12 @@ fun AddItemScreen(
     var notes by remember(editingItem) { mutableStateOf(editingItem?.notes ?: "") }
     var tags by remember(editingItem) { mutableStateOf(editingItem?.tags ?: "") }
     var imageUri by remember(editingItem) { mutableStateOf(editingItem?.imageUri) }
+    var cardHp by remember(editingItem) { mutableStateOf(editingItem?.cardHp ?: "") }
+    var cardArtist by remember(editingItem) { mutableStateOf(editingItem?.cardArtist ?: "") }
+    var cardAttacks by remember(editingItem) { mutableStateOf(editingItem?.cardAttacks ?: "") }
+    var cardOracleText by remember(editingItem) { mutableStateOf(editingItem?.cardOracleText ?: "") }
+    var cardTranslatedEffect by remember(editingItem) { mutableStateOf(editingItem?.cardTranslatedEffect ?: "") }
+    var isTranslatingEffect by remember { mutableStateOf(false) }
 
     // Live autocomplete & catalog state
     var showLiveSuggestions by remember { mutableStateOf(true) }
@@ -221,7 +230,7 @@ fun AddItemScreen(
 
     // Apply Scryfall API Card (Magic: The Gathering)
     fun applyScryfallCard(scryCard: ScryfallCard) {
-        name = scryCard.name
+        name = scryCard.printedName ?: scryCard.name
         category = "Trading Cards"
         subCategory = "Magic: The Gathering"
         collection = scryCard.setName.ifBlank { "Magic: The Gathering" }
@@ -234,12 +243,22 @@ fun AddItemScreen(
         }
         variant = if (scryCard.prices?.usdFoil != null) "Foil" else "Normal"
         condition = "Near Mint (NM)"
-        language = "EN"
+        language = if (scryCard.lang == "pt") "PT-BR" else "EN"
+        cardArtist = scryCard.artist ?: ""
+        cardHp = if (scryCard.loyalty != null) "Lealdade: ${scryCard.loyalty}" else ""
+        cardAttacks = if (scryCard.power != null && scryCard.toughness != null) "Poder/Resistência: ${scryCard.power}/${scryCard.toughness}" else ""
         val estPrice = scryCard.getEstimatedPriceBrl()
         estimatedValueText = String.format(Locale.US, "%.2f", estPrice)
         purchasePriceText = String.format(Locale.US, "%.2f", estPrice * 0.75)
         imageUri = scryCard.getHighResImage()
-        notes = "Carta oficial de Magic importada via Scryfall API (${scryCard.setName} #${scryCard.collectorNumber})"
+
+        val rawOracle = scryCard.printedText ?: scryCard.oracleText ?: scryCard.cardFaces?.joinToString("\n---\n") { "${it.name}: ${it.printedText ?: it.oracleText ?: ""}" } ?: ""
+        cardOracleText = rawOracle
+        val translated = scryCard.printedText ?: CardEffectTranslator.translateToPortuguese(rawOracle, "Magic: The Gathering")
+        cardTranslatedEffect = translated
+
+        val effectSummary = if (translated.isNotBlank()) " • Regras: ${translated.take(100)}..." else ""
+        notes = "Carta oficial de Magic importada via Scryfall API (${scryCard.setName} #${scryCard.collectorNumber})$effectSummary"
         tags = "mtg, magic, ${scryCard.name.lowercase()}, ${scryCard.setName.lowercase()}"
         showLiveSuggestions = false
         scryfallLiveMatches = emptyList()
@@ -260,11 +279,40 @@ fun AddItemScreen(
             variant = "Normal / Holo"
             condition = "Near Mint (NM)"
             language = "PT-BR"
+            cardHp = detail?.hp?.let { "HP $it" } ?: ""
+            cardArtist = detail?.illustrator ?: ""
+
+            val attacksList = detail?.attacks?.joinToString(", ") { "${it.name} (${it.getDamageString()})" } ?: ""
+            cardAttacks = attacksList
+
+            val attacksFormatted = detail?.attacks?.joinToString("\n") { att ->
+                val cost = att.cost?.joinToString(", ") ?: ""
+                val dmg = att.getDamageString().ifBlank { "0" }
+                val effect = if (!att.effect.isNullOrBlank()) " - ${CardEffectTranslator.translateToPortuguese(att.effect, "Pokémon TCG")}" else ""
+                "[Ataque] ${att.name} ($dmg dmg) [${cost}]$effect"
+            } ?: ""
+
+            val abilitiesFormatted = detail?.abilities?.joinToString("\n") { ab ->
+                val effect = if (!ab.effect.isNullOrBlank()) CardEffectTranslator.translateToPortuguese(ab.effect, "Pokémon TCG") else ""
+                "[${ab.type ?: "Habilidade"}] ${ab.name}: $effect"
+            } ?: ""
+
+            val fullEffect = listOfNotNull(
+                if (abilitiesFormatted.isNotBlank()) abilitiesFormatted else null,
+                if (attacksFormatted.isNotBlank()) attacksFormatted else null,
+                if (!detail?.effect.isNullOrBlank()) "Efeito: ${CardEffectTranslator.translateToPortuguese(detail.effect, "Pokémon TCG")}" else null,
+                if (!detail?.description.isNullOrBlank()) "Descrição: ${CardEffectTranslator.translateToPortuguese(detail.description, "Pokémon TCG")}" else null
+            ).joinToString("\n\n")
+
+            cardOracleText = fullEffect
+            cardTranslatedEffect = fullEffect
+
             val estPrice = detail?.getEstimatedPriceBrl() ?: 15.0
             estimatedValueText = String.format(Locale.US, "%.2f", estPrice)
             purchasePriceText = String.format(Locale.US, "%.2f", estPrice * 0.75)
             imageUri = detail?.getHighResImage() ?: brief.getHighResImage()
-            notes = "Carta oficial Pokémon importada via TCGDex API (${detail?.set?.name ?: ""} #${detail?.localId ?: brief.localId})"
+            val effectSummary = if (fullEffect.isNotBlank()) " • ${fullEffect.take(90)}..." else ""
+            notes = "Carta oficial Pokémon importada via TCGDex API (${detail?.set?.name ?: ""} #${detail?.localId ?: brief.localId})$effectSummary"
             tags = "pokemon, ${name.lowercase()}, tcg"
             showLiveSuggestions = false
             scryfallLiveMatches = emptyList()
@@ -813,6 +861,8 @@ fun AddItemScreen(
                             style = MaterialTheme.typography.titleSmall
                         )
 
+                        var isSearchingOfficialPhoto by remember { mutableStateOf(false) }
+
                         if (imageUri != null) {
                             Box(
                                 modifier = Modifier
@@ -843,27 +893,66 @@ fun AddItemScreen(
                                 }
                             }
                         } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Button(
-                                    onClick = { cameraLauncher.launch(null) },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Câmera")
+                                    Button(
+                                        onClick = { cameraLauncher.launch(null) },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Câmera")
+                                    }
+                                    OutlinedButton(
+                                        onClick = { galleryLauncher.launch("image/*") },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Galeria")
+                                    }
                                 }
-                                OutlinedButton(
-                                    onClick = { galleryLauncher.launch("image/*") },
-                                    modifier = Modifier.weight(1f),
+
+                                FilledTonalButton(
+                                    onClick = {
+                                        if (name.isBlank()) {
+                                            Toast.makeText(context, "Digite o nome do item primeiro para buscar a foto oficial na web.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            coroutineScope.launch {
+                                                isSearchingOfficialPhoto = true
+                                                val resolved = OfficialCardImageHelper.searchOfficialImageOnline(
+                                                    name = name,
+                                                    subCategory = subCategory,
+                                                    collection = collection,
+                                                    itemNumber = itemNumber
+                                                ) ?: OfficialCardImageHelper.getOfficialImageUrl(name, subCategory, collection, itemNumber)
+                                                imageUri = resolved
+                                                isSearchingOfficialPhoto = false
+                                                Toast.makeText(context, "Foto oficial da web aplicada!", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Galeria")
+                                    if (isSearchingOfficialPhoto) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Buscando Foto Oficial...")
+                                    } else {
+                                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Buscar Foto Oficial da Web")
+                                    }
                                 }
                             }
                         }
@@ -1478,7 +1567,143 @@ fun AddItemScreen(
                 }
             }
 
-            // --- 11. TAGS & OBSERVAÇÕES ---
+            // --- 11. EFEITOS DA CARTA & TRADUÇÃO PT-BR (SE FOR TRADING CARD) ---
+            if (category == "Trading Cards") {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Efeitos & Regras da Carta",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Tradução automática de inglês para português",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            isTranslatingEffect = true
+                                            try {
+                                                val result = CardEffectTranslator.searchCardEffectsOnline(
+                                                    name = name,
+                                                    subCategory = subCategory,
+                                                    collection = collection,
+                                                    itemNumber = itemNumber
+                                                )
+                                                if (result.translatedEffect.isNotBlank()) {
+                                                    cardTranslatedEffect = result.translatedEffect
+                                                    if (result.originalText.isNotBlank()) {
+                                                        cardOracleText = result.originalText
+                                                    }
+                                                    if (result.cardAttacks.isNotBlank()) {
+                                                        cardAttacks = result.cardAttacks
+                                                    }
+                                                    if (result.cardHp.isNotBlank()) {
+                                                        cardHp = result.cardHp
+                                                    }
+                                                    if (result.cardArtist.isNotBlank()) {
+                                                        cardArtist = result.cardArtist
+                                                    }
+                                                    autoFilledFeedback = "Efeitos traduzidos com sucesso para Português!"
+                                                } else if (cardOracleText.isNotBlank()) {
+                                                    cardTranslatedEffect = CardEffectTranslator.translateToPortuguese(cardOracleText, subCategory)
+                                                    autoFilledFeedback = "Texto traduzido para Português!"
+                                                } else {
+                                                    autoFilledFeedback = "Nenhum texto de efeito encontrado para traduzir."
+                                                }
+                                            } catch (e: Exception) {
+                                                autoFilledFeedback = "Erro ao buscar tradução: ${e.message}"
+                                            } finally {
+                                                isTranslatingEffect = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isTranslatingEffect && name.isNotBlank(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    if (isTranslatingEffect) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Traduzindo...", fontSize = 12.sp)
+                                    } else {
+                                        Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Traduzir EN➔PT", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (cardHp.isNotBlank()) {
+                                    SuggestionChip(
+                                        onClick = {},
+                                        label = { Text(cardHp, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                                    )
+                                }
+                                if (cardAttacks.isNotBlank()) {
+                                    SuggestionChip(
+                                        onClick = {},
+                                        label = { Text(cardAttacks.take(30), fontSize = 11.sp) }
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = cardTranslatedEffect,
+                                onValueChange = { cardTranslatedEffect = it },
+                                label = { Text("O que a carta faz (Tradução PT-BR)") },
+                                placeholder = { Text("Ex: Compre 2 cards. Quando esta criatura atacar, cause 3 de dano...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3,
+                                supportingText = { Text("Efeitos, habilidades e regras traduzidos em português") }
+                            )
+
+                            if (cardOracleText.isNotBlank() && cardOracleText != cardTranslatedEffect) {
+                                OutlinedTextField(
+                                    value = cardOracleText,
+                                    onValueChange = { cardOracleText = it },
+                                    label = { Text("Texto Original em Inglês (Oracle / Regras)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 2
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- 12. TAGS & OBSERVAÇÕES ---
             item {
                 OutlinedTextField(
                     value = tags,
@@ -1503,7 +1728,7 @@ fun AddItemScreen(
                 )
             }
 
-            // --- 12. BOTÃO DE CONFIRMAÇÃO ---
+            // --- 13. BOTÃO DE CONFIRMAÇÃO ---
             item {
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
@@ -1529,7 +1754,12 @@ fun AddItemScreen(
                                 storageLocation = storageLocation,
                                 notes = notes,
                                 tags = tags,
-                                imageUri = imageUri
+                                imageUri = imageUri,
+                                cardHp = cardHp,
+                                cardArtist = cardArtist,
+                                cardAttacks = cardAttacks,
+                                cardOracleText = cardOracleText,
+                                cardTranslatedEffect = cardTranslatedEffect
                             )
                             viewModel.updateItem(updated)
                         } else {
@@ -1560,6 +1790,11 @@ fun AddItemScreen(
                                 notes = notes,
                                 tags = tags,
                                 imageUri = imageUri,
+                                cardHp = cardHp,
+                                cardArtist = cardArtist,
+                                cardAttacks = cardAttacks,
+                                cardOracleText = cardOracleText,
+                                cardTranslatedEffect = cardTranslatedEffect,
                                 priceOffersJson = JsonParserHelper.offersToJson(offers),
                                 priceHistoryJson = JsonParserHelper.historyToJson(history)
                             )

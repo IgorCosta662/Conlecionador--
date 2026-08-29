@@ -2,6 +2,7 @@ package com.example.api
 
 import com.example.BuildConfig
 import com.example.data.*
+import com.example.util.CardEffectTranslator
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -137,10 +138,10 @@ object GeminiClient {
                - Classifique o risco de autenticidade: 'Baixo risco aparente', 'Necessita análise' ou 'Possíveis sinais de inconformidade'.
 
             FORMATO DE RETORNO OBRIGATÓRIO (Linha única separada por pipes '|'):
-            NOME|CATEGORIA|SUBCATEGORIA|COLECAO|NUMERO|EDICAO|IDIOMA|RARIDADE|VARIANTE|CONDICAO|COND_PCT|ANO|COR|ESCALA|CARD_HP|CARD_ARTIST|CARD_ATTACKS|AUTENTICIDADE|CONFIANCA_PCT|PRECO_MEDIO|PRECO_MIN|PRECO_MAX|COMENTARIO_MERCADO
+            NOME|CATEGORIA|SUBCATEGORIA|COLECAO|NUMERO|EDICAO|IDIOMA|RARIDADE|VARIANTE|CONDICAO|COND_PCT|ANO|COR|ESCALA|CARD_HP|CARD_ARTIST|CARD_ATTACKS|AUTENTICIDADE|CONFIANCA_PCT|PRECO_MEDIO|PRECO_MIN|PRECO_MAX|COMENTARIO_MERCADO|TEXTO_ORIGINAL_REGRAS|TRADUCAO_PORTUGUES_EFEITOS
 
             Exemplo:
-            Charizard ex|Trading Cards|Pokémon TCG|Scarlet & Violet 151|151/165|Primeira Tiragem|PT-BR|Special Illustration Rare|Alternate Art Foil|Near Mint|88|2023||N/A|HP 330|Mitsuhiro Arita|Brave Wing, Explosive Vortex|Baixo risco aparente|94|380.00|320.00|450.00|Alta valorização em português por ser a carta secreta mais procurada do set 151.
+            Charizard ex|Trading Cards|Pokémon TCG|Scarlet & Violet 151|151/165|Primeira Tiragem|PT-BR|Special Illustration Rare|Alternate Art Foil|Near Mint|88|2023||N/A|HP 330|Mitsuhiro Arita|Brave Wing, Explosive Vortex|Baixo risco aparente|94|380.00|320.00|450.00|Alta valorização em português por ser a carta secreta mais procurada do set 151.|Brave Wing: 60+ damage. Explosive Vortex: 330 damage.|Asa Valente: 60+ de dano. Vórtice Explosivo: 330 de dano. Descarte 3 Energias desta carta.
 
             Não retorne markdown ou blocos de código. Apenas a linha com pipes.
         """.trimIndent()
@@ -203,6 +204,8 @@ object GeminiClient {
             val minPrice = if (catalogMatch != null) catalogMatch.lowPriceBrl else (parts.getOrNull(20)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 0.85))
             val maxPrice = if (catalogMatch != null) catalogMatch.highPriceBrl else (parts.getOrNull(21)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 1.25))
             val comment = parts.getOrNull(22)?.trim() ?: "Identificado com precisão pericial por IA."
+            val rawOracleText = parts.getOrNull(23)?.trim() ?: ""
+            val rawTranslatedEffect = parts.getOrNull(24)?.trim() ?: (if (rawOracleText.isNotBlank()) CardEffectTranslator.translateToPortuguese(rawOracleText, subCategory) else "")
 
             val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
                 itemName = name,
@@ -243,6 +246,8 @@ object GeminiClient {
                 cardHp = cardHp,
                 cardArtist = cardArtist,
                 cardAttacks = cardAttacks,
+                cardOracleText = rawOracleText,
+                cardTranslatedEffect = rawTranslatedEffect,
                 cardSetSymbol = if (collection.isNotBlank()) "◆" else "",
                 apparentCondition = condition,
                 conditionConfidenceScore = condPct,
@@ -347,7 +352,9 @@ object GeminiClient {
             isFoil = variant.contains("Foil", ignoreCase = true) || variant.contains("Holo", ignoreCase = true),
             cardHp = if (name.contains("Charizard", true)) "HP 330" else if (name.contains("Pikachu", true)) "HP 60" else "",
             cardArtist = if (name.contains("Charizard", true)) "AKIRA EGAWA" else "",
-            cardAttacks = if (name.contains("Charizard", true)) "Brave Wing (60+), Explosive Vortex (330)" else "",
+            cardAttacks = if (name.contains("Charizard", true)) "Brave Wing (60+), Explosive Vortex (330)" else if (name.contains("Pikachu", true)) "Charge (10), Thunderbolt (60)" else "",
+            cardOracleText = if (name.contains("Charizard", true)) "Brave Wing: 60+ damage. This attack does 60 more damage for each damage counter on this Pokémon.\nExplosive Vortex: 330 damage. Discard 3 Energy from this Pokémon." else if (name.contains("Pikachu", true)) "Charge: Search your deck for an Energy card and attach it to this Pokémon.\nThunderbolt: Discard all Energy attached to this Pokémon." else "",
+            cardTranslatedEffect = if (name.contains("Charizard", true)) "Asa Valente: 60+ de dano. Este ataque causa 60 pontos de dano a mais para cada contador de dano neste Pokémon.\nVórtice Explosivo: 330 de dano. Descarte 3 Energias deste Pokémon." else if (name.contains("Pikachu", true)) "Carga: Procure em seu baralho por 1 card de Energia e ligue-o a este Pokémon.\nChoque do Trovão: Descarte todas as Energias ligadas a este Pokémon." else "",
             cardSetSymbol = if (collection.isNotBlank()) "◆" else "",
             apparentCondition = condition,
             conditionConfidenceScore = 92,

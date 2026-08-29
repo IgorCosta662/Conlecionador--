@@ -46,6 +46,8 @@ data class Item(
     val cardArtist: String = "", // Ex: "Mitsuhiro Arita"
     val cardAttacks: String = "", // Ex: "Brave Wing, Explosive Vortex"
     val cardSetSymbol: String = "",
+    val cardOracleText: String = "", // Texto original / regras em inglês
+    val cardTranslatedEffect: String = "", // O que a carta faz traduzido para Português (efeitos, habilidades, regras)
     val currency: String = "BRL",
     val lastPriceUpdate: Long = System.currentTimeMillis(),
     val dateAdded: Long = System.currentTimeMillis()

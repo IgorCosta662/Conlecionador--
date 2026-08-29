@@ -32,6 +32,10 @@ data class TcgdexCardDetail(
     @Json(name = "types") val types: List<String>? = null,
     @Json(name = "stage") val stage: String? = null,
     @Json(name = "image") val image: String? = null,
+    @Json(name = "description") val description: String? = null,
+    @Json(name = "effect") val effect: String? = null,
+    @Json(name = "attacks") val attacks: List<TcgdexAttack>? = null,
+    @Json(name = "abilities") val abilities: List<TcgdexAbility>? = null,
     @Json(name = "set") val set: TcgdexSetBrief? = null,
     @Json(name = "variants") val variants: TcgdexVariants? = null
 ) {
@@ -57,6 +61,25 @@ data class TcgdexCardDetail(
         }
     }
 }
+
+@JsonClass(generateAdapter = true)
+data class TcgdexAttack(
+    @Json(name = "name") val name: String = "",
+    @Json(name = "cost") val cost: List<String>? = null,
+    @Json(name = "effect") val effect: String? = null,
+    @Json(name = "damage") val damage: Any? = null
+) {
+    fun getDamageString(): String {
+        return damage?.toString() ?: ""
+    }
+}
+
+@JsonClass(generateAdapter = true)
+data class TcgdexAbility(
+    @Json(name = "type") val type: String? = null,
+    @Json(name = "name") val name: String = "",
+    @Json(name = "effect") val effect: String? = null
+)
 
 @JsonClass(generateAdapter = true)
 data class TcgdexSetBrief(

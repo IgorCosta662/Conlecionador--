@@ -42,7 +42,9 @@ import com.example.ui.ScanUiState
 import com.example.ui.components.ConfidenceMeter
 import com.example.ui.components.CurrencySelector
 import com.example.ui.components.PriceEvolutionChart
+import com.example.util.CardEffectTranslator
 import com.example.util.OfficialCardImageHelper
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +66,10 @@ fun ScanResultScreen(
 
     // Official Web Card Image toggle
     var preferOfficialImage by remember { mutableStateOf(false) }
+    var customOfficialImageUrl by remember { mutableStateOf<String?>(null) }
+    var isSearchingWebImage by remember { mutableStateOf(false) }
+    var isTranslatingEffect by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val backCameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -232,6 +238,8 @@ fun ScanResultScreen(
                             )
                         }
 
+                        val effectiveOfficialUrl = customOfficialImageUrl ?: officialUrl
+
                         // Image banner
                         Box(
                             modifier = Modifier
@@ -247,9 +255,9 @@ fun ScanResultScreen(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (preferOfficialImage && officialUrl.isNotBlank()) {
+                            if (preferOfficialImage && effectiveOfficialUrl.isNotBlank()) {
                                 AsyncImage(
-                                    model = officialUrl,
+                                    model = effectiveOfficialUrl,
                                     contentDescription = "Foto Oficial da Web",
                                     contentScale = ContentScale.Fit,
                                     modifier = Modifier
@@ -305,7 +313,7 @@ fun ScanResultScreen(
                                         modifier = Modifier.size(12.dp)
                                     )
                                     Text(
-                                        text = if (preferOfficialImage) "Imagem Oficial HD" else "Sua Foto",
+                                        text = if (isSearchingWebImage) "Buscando Web..." else if (preferOfficialImage) "Imagem Oficial HD" else "Sua Foto",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -322,7 +330,24 @@ fun ScanResultScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             FilledTonalButton(
-                                onClick = { preferOfficialImage = !preferOfficialImage },
+                                onClick = {
+                                    preferOfficialImage = !preferOfficialImage
+                                    if (preferOfficialImage && customOfficialImageUrl == null) {
+                                        coroutineScope.launch {
+                                            isSearchingWebImage = true
+                                            val liveUrl = OfficialCardImageHelper.searchOfficialImageOnline(
+                                                itemResult.name,
+                                                itemResult.subCategory,
+                                                itemResult.collection,
+                                                itemResult.itemNumber
+                                            )
+                                            if (!liveUrl.isNullOrBlank()) {
+                                                customOfficialImageUrl = liveUrl
+                                            }
+                                            isSearchingWebImage = false
+                                        }
+                                    }
+                                },
                                 modifier = Modifier.weight(1.2f),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
@@ -675,6 +700,164 @@ fun ScanResultScreen(
                 }
             }
 
+            // 4.5 O QUE A CARTA FAZ (TRADUÇÃO PT-BR)
+            if (itemResult.category == "Trading Cards" || itemResult.cardTranslatedEffect.isNotBlank() || itemResult.cardOracleText.isNotBlank() || itemResult.cardAttacks.isNotBlank() || itemResult.cardHp.isNotBlank()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(Icons.Default.Translate, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    Text(
+                                        text = "O QUE A CARTA FAZ (PT-BR)",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                TextButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            isTranslatingEffect = true
+                                            try {
+                                                val result = CardEffectTranslator.searchCardEffectsOnline(
+                                                    name = itemResult.name,
+                                                    subCategory = itemResult.subCategory,
+                                                    collection = itemResult.collection,
+                                                    itemNumber = itemResult.itemNumber
+                                                )
+                                                val updated = itemResult.copy(
+                                                    cardTranslatedEffect = result.translatedEffect.ifBlank {
+                                                        if (itemResult.cardOracleText.isNotBlank()) {
+                                                            CardEffectTranslator.translateToPortuguese(itemResult.cardOracleText, itemResult.subCategory)
+                                                        } else itemResult.cardTranslatedEffect
+                                                    },
+                                                    cardOracleText = if (result.originalText.isNotBlank()) result.originalText else itemResult.cardOracleText,
+                                                    cardAttacks = if (result.cardAttacks.isNotBlank()) result.cardAttacks else itemResult.cardAttacks,
+                                                    cardHp = if (result.cardHp.isNotBlank()) result.cardHp else itemResult.cardHp,
+                                                    cardArtist = if (result.cardArtist.isNotBlank()) result.cardArtist else itemResult.cardArtist
+                                                )
+                                                viewModel.updateCorrectionBuffer(updated)
+                                            } catch (_: Exception) {
+                                            } finally {
+                                                isTranslatingEffect = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isTranslatingEffect
+                                ) {
+                                    if (isTranslatingEffect) {
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Traduzindo...", fontSize = 11.sp)
+                                    } else {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Traduzir / Atualizar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            // Badges for HP, Attacks, Artist
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (itemResult.cardHp.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = itemResult.cardHp,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                                if (itemResult.cardArtist.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                    ) {
+                                        Text(
+                                            text = "Ilustrador: ${itemResult.cardArtist}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (itemResult.cardAttacks.isNotBlank()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = itemResult.cardAttacks,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            val effectText = if (itemResult.cardTranslatedEffect.isNotBlank()) {
+                                itemResult.cardTranslatedEffect
+                            } else if (itemResult.cardOracleText.isNotBlank()) {
+                                CardEffectTranslator.translateToPortuguese(itemResult.cardOracleText, itemResult.subCategory)
+                            } else {
+                                "Efeitos da carta serão traduzidos automaticamente ao consultar Scryfall / TCGDex. Clique em 'Traduzir / Atualizar' para buscar agora."
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = effectText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    lineHeight = 20.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+
+                            if (itemResult.cardOracleText.isNotBlank() && itemResult.cardOracleText != itemResult.cardTranslatedEffect) {
+                                Text(
+                                    text = "Texto Original (Inglês):\n${itemResult.cardOracleText}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                    lineHeight = 15.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // 5. CONFIANÇA DA IDENTIFICAÇÃO
             item {
                 ConfidenceMeter(score = itemResult.confidenceScore)
@@ -789,7 +972,8 @@ fun ScanResultScreen(
             selectedCurrency = selectedCurrency,
             onDismiss = { showAddToCollectionDialog = false },
             onConfirm = { qty, paidPrice, location, notes ->
-                val finalImageUri = if (preferOfficialImage && officialUrl.isNotBlank()) officialUrl else successState.savedImageUri
+                val chosenOfficial = customOfficialImageUrl ?: officialUrl
+                val finalImageUri = if (preferOfficialImage && chosenOfficial.isNotBlank()) chosenOfficial else successState.savedImageUri
 
                 viewModel.saveIdentifiedItemToCollection(
                     identification = itemResult,
@@ -866,6 +1050,8 @@ fun CorrectionModal(
     var language by remember { mutableStateOf(initialResult.language) }
     var condition by remember { mutableStateOf(initialResult.apparentCondition) }
     var averagePrice by remember { mutableStateOf(initialResult.averagePrice.toString()) }
+    var cardTranslatedEffect by remember { mutableStateOf(initialResult.cardTranslatedEffect) }
+    var cardOracleText by remember { mutableStateOf(initialResult.cardOracleText) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -948,6 +1134,24 @@ fun CorrectionModal(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                item {
+                    OutlinedTextField(
+                        value = cardTranslatedEffect,
+                        onValueChange = { cardTranslatedEffect = it },
+                        label = { Text("O que a carta faz (Tradução PT-BR)") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                item {
+                    OutlinedTextField(
+                        value = cardOracleText,
+                        onValueChange = { cardOracleText = it },
+                        label = { Text("Texto Original (Inglês)") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         },
         confirmButton = {
@@ -964,7 +1168,9 @@ fun CorrectionModal(
                     apparentCondition = condition,
                     averagePrice = parsedPrice,
                     minPrice = parsedPrice * 0.85,
-                    maxPrice = parsedPrice * 1.25
+                    maxPrice = parsedPrice * 1.25,
+                    cardTranslatedEffect = cardTranslatedEffect,
+                    cardOracleText = cardOracleText
                 )
                 onConfirm(updated)
             }) {

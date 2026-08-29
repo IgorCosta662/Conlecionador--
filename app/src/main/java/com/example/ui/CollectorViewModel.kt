@@ -149,6 +149,33 @@ class CollectorViewModel(
         selectedMarketRegion.value = market
     }
 
+    // --- App Preferences & Automation Settings ---
+    val autoTranslateCardEffects = MutableStateFlow(true)
+    val preferOfficialWebImages = MutableStateFlow(false)
+    val showCameraGrid = MutableStateFlow(true)
+    val priceAlertsNotificationsEnabled = MutableStateFlow(true)
+    val highPrecisionAiAppraisal = MutableStateFlow(true)
+
+    fun setAutoTranslate(enabled: Boolean) {
+        autoTranslateCardEffects.value = enabled
+    }
+
+    fun setPreferOfficialWebImages(enabled: Boolean) {
+        preferOfficialWebImages.value = enabled
+    }
+
+    fun setShowCameraGrid(enabled: Boolean) {
+        showCameraGrid.value = enabled
+    }
+
+    fun setPriceAlertsNotificationsEnabled(enabled: Boolean) {
+        priceAlertsNotificationsEnabled.value = enabled
+    }
+
+    fun setHighPrecisionAiAppraisal(enabled: Boolean) {
+        highPrecisionAiAppraisal.value = enabled
+    }
+
     // --- Filter & Search States ---
     val searchQuery = MutableStateFlow("")
     val selectedCategoryFilter = MutableStateFlow("TODOS")
@@ -415,6 +442,8 @@ class CollectorViewModel(
                 cardArtist = identification.cardArtist,
                 cardAttacks = identification.cardAttacks,
                 cardSetSymbol = identification.cardSetSymbol,
+                cardOracleText = identification.cardOracleText,
+                cardTranslatedEffect = identification.cardTranslatedEffect,
                 quantity = quantity,
                 purchasePrice = purchasePrice,
                 estimatedValue = identification.averagePrice,
@@ -593,6 +622,13 @@ class CollectorViewModel(
         }
     }
 
+    fun loadSampleData() {
+        viewModelScope.launch {
+            val sampleItems = InitialDataSeeder.getSampleItems()
+            repository.insertItems(sampleItems)
+        }
+    }
+
     fun reloadCatalogWithFreshData() {
         viewModelScope.launch {
             repository.deleteAllItems()
@@ -600,6 +636,51 @@ class CollectorViewModel(
             repository.insertItems(freshItems)
             selectedItem.value = null
         }
+    }
+
+    fun exportJsonBackup(): String {
+        val items = allItems.value
+        val sb = StringBuilder()
+        sb.append("{\n")
+        sb.append("  \"app\": \"Collector Pro\",\n")
+        sb.append("  \"version\": \"2.6\",\n")
+        sb.append("  \"exportedAt\": ${System.currentTimeMillis()},\n")
+        sb.append("  \"totalItems\": ${items.size},\n")
+        sb.append("  \"items\": [\n")
+        items.forEachIndexed { index, it ->
+            sb.append("    {\n")
+            sb.append("      \"name\": \"${it.name.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"type\": \"${it.type}\",\n")
+            sb.append("      \"subCategory\": \"${it.subCategory.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"collection\": \"${it.collection.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"itemNumber\": \"${it.itemNumber}\",\n")
+            sb.append("      \"rarity\": \"${it.rarity}\",\n")
+            sb.append("      \"variant\": \"${it.variant}\",\n")
+            sb.append("      \"condition\": \"${it.condition}\",\n")
+            sb.append("      \"language\": \"${it.language}\",\n")
+            sb.append("      \"scale\": \"${it.scale}\",\n")
+            sb.append("      \"color\": \"${it.color}\",\n")
+            sb.append("      \"year\": \"${it.year}\",\n")
+            sb.append("      \"quantity\": ${it.quantity},\n")
+            sb.append("      \"purchasePrice\": ${it.purchasePrice},\n")
+            sb.append("      \"estimatedValue\": ${it.estimatedValue},\n")
+            sb.append("      \"minPrice\": ${it.minPrice},\n")
+            sb.append("      \"maxPrice\": ${it.maxPrice},\n")
+            sb.append("      \"imageUri\": ${if (it.imageUri != null) "\"${it.imageUri}\"" else "null"},\n")
+            sb.append("      \"isFavorite\": ${it.isFavorite},\n")
+            sb.append("      \"tags\": \"${it.tags.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"storageLocation\": \"${it.storageLocation.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"notes\": \"${it.notes.replace("\"", "\\\"").replace("\n", "\\n")}\",\n")
+            sb.append("      \"cardHp\": \"${it.cardHp}\",\n")
+            sb.append("      \"cardArtist\": \"${it.cardArtist.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"cardAttacks\": \"${it.cardAttacks.replace("\"", "\\\"")}\",\n")
+            sb.append("      \"cardOracleText\": \"${it.cardOracleText.replace("\"", "\\\"").replace("\n", "\\n")}\",\n")
+            sb.append("      \"cardTranslatedEffect\": \"${it.cardTranslatedEffect.replace("\"", "\\\"").replace("\n", "\\n")}\"\n")
+            sb.append("    }${if (index < items.size - 1) "," else ""}\n")
+        }
+        sb.append("  ]\n")
+        sb.append("}")
+        return sb.toString()
     }
 
     // --- Achievements ---
