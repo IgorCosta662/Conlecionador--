@@ -535,14 +535,14 @@ class CollectorViewModel(
         _appraisalState.value = AppraisalState.Idle
     }
 
-    // --- Price Re-evaluation with AI ---
+    // --- Price Re-evaluation with AI & Cross-Referencing ---
     private val _priceUpdateState = MutableStateFlow<PriceUpdateState>(PriceUpdateState.Idle)
     val priceUpdateState: StateFlow<PriceUpdateState> = _priceUpdateState.asStateFlow()
 
     fun refreshItemPriceWithAI(item: Item) {
         viewModelScope.launch {
             _priceUpdateState.value = PriceUpdateState.Loading
-            val prices = PriceSourceRegistry.generateRealisticOffersAndHistory(
+            val (offers, history, report) = PriceSourceRegistry.crossReferenceCardPricingOnline(
                 itemName = item.name,
                 subCategory = item.subCategory,
                 rarity = item.rarity,
@@ -553,9 +553,9 @@ class CollectorViewModel(
                 baseEstimatedPrice = item.estimatedValue
             )
 
-            val avgPrice = prices.first.map { it.priceInBRL }.average().takeIf { !it.isNaN() } ?: item.estimatedValue
-            val minP = prices.first.minOfOrNull { it.priceInBRL } ?: (avgPrice * 0.85)
-            val maxP = prices.first.maxOfOrNull { it.priceInBRL } ?: (avgPrice * 1.25)
+            val avgPrice = report.stableAveragedPriceBrl
+            val minP = report.minPriceBrl
+            val maxP = report.maxPriceBrl
             val condTiers = PriceSourceRegistry.generateConditionPriceTiers(avgPrice)
             val langComparisons = PriceSourceRegistry.generateLanguageComparisons(item.name, avgPrice, item.language)
 
@@ -563,8 +563,9 @@ class CollectorViewModel(
                 estimatedValue = avgPrice,
                 minPrice = minP,
                 maxPrice = maxP,
-                priceOffersJson = JsonParserHelper.offersToJson(prices.first),
-                priceHistoryJson = JsonParserHelper.historyToJson(prices.second),
+                priceOffersJson = JsonParserHelper.offersToJson(offers),
+                priceHistoryJson = JsonParserHelper.historyToJson(history),
+                crossReferencedReportJson = JsonParserHelper.crossReferencedReportToJson(report),
                 conditionPricesJson = JsonParserHelper.conditionTiersToJson(condTiers),
                 languageComparisonJson = JsonParserHelper.langComparisonToJson(langComparisons),
                 lastPriceUpdate = System.currentTimeMillis()
@@ -572,6 +573,45 @@ class CollectorViewModel(
             repository.updateItem(updatedItem)
             selectedItem.value = updatedItem
             _priceUpdateState.value = PriceUpdateState.Success(avgPrice, minP, maxP)
+        }
+    }
+
+    /**
+     * Cross-references and normalizes prices for all items in the user's collection against secondary market APIs.
+     */
+    fun recalculateCollectionWithCrossReferencing() {
+        viewModelScope.launch {
+            val currentItems = allItems.value
+            currentItems.forEach { item ->
+                val (offers, history, report) = PriceSourceRegistry.crossReferenceCardPricingOnline(
+                    itemName = item.name,
+                    subCategory = item.subCategory,
+                    rarity = item.rarity,
+                    variant = item.variant,
+                    condition = item.condition,
+                    language = item.language,
+                    marketRegion = MarketRegion.fromCode(item.marketRegion),
+                    baseEstimatedPrice = item.estimatedValue
+                )
+                val avgPrice = report.stableAveragedPriceBrl
+                val minP = report.minPriceBrl
+                val maxP = report.maxPriceBrl
+                val condTiers = PriceSourceRegistry.generateConditionPriceTiers(avgPrice)
+                val langComparisons = PriceSourceRegistry.generateLanguageComparisons(item.name, avgPrice, item.language)
+
+                val updatedItem = item.copy(
+                    estimatedValue = avgPrice,
+                    minPrice = minP,
+                    maxPrice = maxP,
+                    priceOffersJson = JsonParserHelper.offersToJson(offers),
+                    priceHistoryJson = JsonParserHelper.historyToJson(history),
+                    crossReferencedReportJson = JsonParserHelper.crossReferencedReportToJson(report),
+                    conditionPricesJson = JsonParserHelper.conditionTiersToJson(condTiers),
+                    languageComparisonJson = JsonParserHelper.langComparisonToJson(langComparisons),
+                    lastPriceUpdate = System.currentTimeMillis()
+                )
+                repository.updateItem(updatedItem)
+            }
         }
     }
 

@@ -846,6 +846,158 @@ fun ItemDetailScreen(
                 )
             }
 
+            // 6.5 CONSENSO MULTIMERCADO & NORMALIZAÇÃO CAMBIAL
+            item {
+                val crossReport = item.getCrossReferencedReport() ?: com.example.api.PriceSourceRegistry.generateCrossReferencedMarketPricing(
+                    itemName = item.name,
+                    subCategory = item.subCategory,
+                    rarity = item.rarity,
+                    variant = item.variant,
+                    condition = item.condition,
+                    language = item.language,
+                    baseEstimatedPrice = item.estimatedValue
+                ).third
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "CONSENSO MULTIMERCADO & CAMBIO",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "LigaMagic vs Mercados Internacionais",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Text(
+                                        text = "${crossReport.stabilityScore}% Estabilidade",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+
+                        // Parity / Discrepancy Note
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.SyncAlt, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                                Text(
+                                    text = crossReport.discrepancyNote,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Quotes Table Breakdown
+                        if (crossReport.quotes.isNotEmpty()) {
+                            Text(
+                                text = "Fontes Cruzadas & Normalização (${selectedCurrency.code}):",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            crossReport.quotes.forEach { quote ->
+                                val origSymbol = when (quote.originalCurrency) {
+                                    "USD" -> "$"
+                                    "EUR" -> "€"
+                                    "JPY" -> "¥"
+                                    "GBP" -> "£"
+                                    else -> "R$"
+                                }
+                                val origFormatted = if (quote.originalCurrency == "JPY") {
+                                    "$origSymbol ${String.format(Locale.US, "%.0f", quote.originalPrice)}"
+                                } else {
+                                    "$origSymbol ${String.format(Locale.US, "%.2f", quote.originalPrice)}"
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            if (quote.isDomesticSource) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f) else Color.Transparent,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                        ) {
+                                            Text(
+                                                text = quote.sourceRegion,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Column {
+                                            Text(quote.sourceName, style = MaterialTheme.typography.bodyMedium, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                text = "Orig: $origFormatted • Peso: ${quote.weightPercentage}%",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = selectedCurrency.format(quote.normalizedPriceBrl),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (quote.isDomesticSource) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // 7. STORE OFFERS LIST
             item {
                 val offers = item.getOffersList()

@@ -48,6 +48,7 @@ data class Item(
     val cardSetSymbol: String = "",
     val cardOracleText: String = "", // Texto original / regras em inglês
     val cardTranslatedEffect: String = "", // O que a carta faz traduzido para Português (efeitos, habilidades, regras)
+    val crossReferencedReportJson: String = "{}", // Relatório de consenso cruzado e normalização cambial
     val currency: String = "BRL",
     val lastPriceUpdate: Long = System.currentTimeMillis(),
     val dateAdded: Long = System.currentTimeMillis()
@@ -57,6 +58,7 @@ data class Item(
     fun getLanguageComparisonList(): List<LanguagePriceComparison> = JsonParserHelper.langComparisonFromJson(languageComparisonJson)
     fun getConditionPriceTiers(): List<ConditionPriceTier> = JsonParserHelper.conditionTiersFromJson(conditionPricesJson)
     fun getConditionAssessment(): ConditionAssessment = JsonParserHelper.conditionAssessmentFromJson(conditionAssessmentJson)
+    fun getCrossReferencedReport(): CrossReferencedPriceReport? = JsonParserHelper.crossReferencedReportFromJson(crossReferencedReportJson)
     fun getDetailImages(): List<String> = JsonParserHelper.stringListFromJson(detailImagesJson)
 
     val totalEstimatedValue: Double get() = estimatedValue * quantity

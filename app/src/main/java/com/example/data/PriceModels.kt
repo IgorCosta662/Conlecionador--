@@ -133,6 +133,35 @@ data class ConditionAssessment(
 )
 
 // ----------------------------------------------------
+// Cross-Referenced Market Source Quote
+// ----------------------------------------------------
+@JsonClass(generateAdapter = true)
+data class MarketSourceQuote(
+    val sourceName: String, // e.g. "LigaMagic Brasil (Média)", "TCGPlayer Direct (US)", "Cardmarket Trend (EU)"
+    val originalPrice: Double,
+    val originalCurrency: String, // "BRL", "USD", "EUR", "JPY"
+    val normalizedPriceBrl: Double,
+    val weightPercentage: Int, // e.g. 50%
+    val condition: String = "Near Mint",
+    val isDomesticSource: Boolean = false,
+    val sourceRegion: String = "BR" // "BR", "US", "EU", "JP"
+)
+
+// ----------------------------------------------------
+// Cross-Referenced Market Report
+// ----------------------------------------------------
+@JsonClass(generateAdapter = true)
+data class CrossReferencedPriceReport(
+    val stableAveragedPriceBrl: Double,
+    val minPriceBrl: Double,
+    val maxPriceBrl: Double,
+    val stabilityScore: Int = 92, // 0-100%
+    val marketSpreadPercent: Double = 12.5,
+    val discrepancyNote: String = "Paridade equilibrada entre LigaMagic e mercados internacionais.",
+    val quotes: List<MarketSourceQuote> = emptyList()
+)
+
+// ----------------------------------------------------
 // Price Matrix by Condition
 // ----------------------------------------------------
 @JsonClass(generateAdapter = true)
@@ -176,10 +205,14 @@ object JsonParserHelper {
     private val langComparisonAdapter = moshi.adapter<List<LanguagePriceComparison>>(langComparisonListType)
     private val conditionTiersAdapter = moshi.adapter<List<ConditionPriceTier>>(conditionTiersListType)
     private val conditionAssessmentAdapter = moshi.adapter(ConditionAssessment::class.java)
+    private val crossReferencedReportAdapter = moshi.adapter(CrossReferencedPriceReport::class.java)
     private val stringListAdapter = moshi.adapter<List<String>>(stringListType)
 
     fun offersToJson(offers: List<PriceOffer>): String = try { priceOffersAdapter.toJson(offers) } catch (e: Exception) { "[]" }
     fun offersFromJson(json: String?): List<PriceOffer> = if (json.isNullOrBlank()) emptyList() else try { priceOffersAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }
+
+    fun crossReferencedReportToJson(report: CrossReferencedPriceReport): String = try { crossReferencedReportAdapter.toJson(report) } catch (e: Exception) { "{}" }
+    fun crossReferencedReportFromJson(json: String?): CrossReferencedPriceReport? = if (json.isNullOrBlank() || json == "{}") null else try { crossReferencedReportAdapter.fromJson(json) } catch (e: Exception) { null }
 
     fun historyToJson(history: List<PriceHistoryPoint>): String = try { priceHistoryAdapter.toJson(history) } catch (e: Exception) { "[]" }
     fun historyFromJson(json: String?): List<PriceHistoryPoint> = if (json.isNullOrBlank()) emptyList() else try { priceHistoryAdapter.fromJson(json) ?: emptyList() } catch (e: Exception) { emptyList() }

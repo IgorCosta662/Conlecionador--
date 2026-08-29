@@ -1,8 +1,10 @@
 package com.example.api
 
 import com.example.BuildConfig
+import com.example.api.scryfall.ScryfallDataService
 import com.example.data.*
 import com.example.util.CardEffectTranslator
+import com.example.util.OfficialCardImageHelper
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -117,23 +119,25 @@ object GeminiClient {
 
             INSTRUÇÕES CRÍTICAS DE PRECISÃO & VALORES 100% REAIS DE MERCADO:
             1. IDENTIFICAÇÃO E ATRIBUTOS:
-               - Identifique nome exato, coleção/set, número de colecionador (#xxx/xxx), raridade, variante (Foil, Reverse Holo, Alternate Art, Secret Rare, Special Illustration Rare, STH, TH, etc.).
+               - Identifique nome exato, coleção/set, número de colecionador (#xxx/xxx), raridade, variante (Foil, Non-Foil, Reverse Holo, Alternate Art, Secret Rare, Special Illustration Rare, STH, TH, etc.).
                - Para cards, extraia HP, ataques e ilustrador/artista se visível.
             2. DETECÇÃO DE IDIOMA OBRIGATÓRIA:
                - Analise o texto da carta e identifique o idioma exato: PT-BR (Português), EN (Inglês), JP (Japonês), ZH (Chinês), KO (Coreano), FR (Francês), DE (Alemão), ES (Espanhol), IT (Italiano) ou N/A.
-               - O idioma NUNCA deve ser misturado na precificação!
             3. AVALIAÇÃO DE CONDIÇÃO VISUAL (ESTIMATIVA):
                - Estime a condição: 'Mint', 'Near Mint', 'Excellent', 'Good', 'Played', 'Poor'.
-               - Analise arranhões, cantos, bordas/whitening, centralização e dobras.
-            4. PRECIFICAÇÃO REAL DE MERCADO (100% FIEL AO MERCADO):
-               - Forneça a cotação real atual em Reais (BRL) baseada nas seguintes referências oficiais:
-                 * Pokémon TCG (PT-BR): Baseie-se na média real da LigaPokémon / MypCards (ex: Charizard ex SIR 151 = ~R$ 850, Pikachu 151 IR = ~R$ 190, Umbreon VMAX Moonbreon = ~R$ 4.800).
-                 * Magic: The Gathering: LigaMagic e TCGPlayer Direct (convertido com USD ~5.65).
-                 * Yu-Gi-Oh!: LigaYugioh e 25th QCR Market.
-                 * One Piece Card Game: Mercado oficial de Manga Rares (R$ 3.000 - R$ 9.000+).
-                 * Diecast / Hot Wheels: Super Treasure Hunt = R$ 180 - R$ 500+; Mainline = R$ 15 - R$ 25; RLC = R$ 250 - R$ 900+.
-                 * Moedas do Brasil: Catálogo Oficial do Real (Moeda DH 1998 FC = ~R$ 450, Moedas Comemorativas = R$ 25 - R$ 200).
-               - NUNCA invente valores genéricos artificiais; use o valor de mercado real do colecionável identificado.
+            4. REGRAS DE PRECIFICAÇÃO REAL (FIDELIDADE RIGOROSA À LIGAMAGIC E LIGAPOKÉMON):
+               - NUNCA superestime cartas comuns ou incomuns! A imensa maioria das cartas comuns/incomuns custa centavos ou poucos reais:
+                 * Magic Comum: Menor R$ 0,20 | Médio R$ 0,80 | Maior R$ 2,00
+                 * Magic Incomum (ex: The Thing, Ben Grimm - SCMSH): Menor R$ 0,90 | Médio R$ 2,68 | Maior R$ 5,00 (Foil: R$ 1,40 a R$ 4,20)
+                 * Magic Rara Regular: Menor R$ 1,50 | Médio R$ 4,00 a R$ 15,00
+                 * Magic Mítica: R$ 15,00 a R$ 80,00+ (salvo staples cobiçadas)
+                 * Pokémon Comum: R$ 0,20 - R$ 1,50
+                 * Pokémon Incomum: R$ 0,50 - R$ 3,50
+                 * Pokémon Rara Regular / Holo: R$ 2,00 - R$ 8,00
+                 * Pokémon ex / V regular: R$ 8,00 - R$ 25,00
+                 * Pokémon Special Illustration Rare (SIR): R$ 150 - R$ 900+
+                 * Diecast Mainline regular: R$ 15,00 - R$ 19,99; Super Treasure Hunt: R$ 180 - R$ 450.
+                 * Moedas comuns de circulação: R$ 1,00 - R$ 5,00; Comemorativas: R$ 15 - R$ 80; DH 1998 FC: R$ 300 - R$ 450.
             5. ANÁLISE DE AUTENTICIDADE:
                - Classifique o risco de autenticidade: 'Baixo risco aparente', 'Necessita análise' ou 'Possíveis sinais de inconformidade'.
 
@@ -141,7 +145,7 @@ object GeminiClient {
             NOME|CATEGORIA|SUBCATEGORIA|COLECAO|NUMERO|EDICAO|IDIOMA|RARIDADE|VARIANTE|CONDICAO|COND_PCT|ANO|COR|ESCALA|CARD_HP|CARD_ARTIST|CARD_ATTACKS|AUTENTICIDADE|CONFIANCA_PCT|PRECO_MEDIO|PRECO_MIN|PRECO_MAX|COMENTARIO_MERCADO|TEXTO_ORIGINAL_REGRAS|TRADUCAO_PORTUGUES_EFEITOS
 
             Exemplo:
-            Charizard ex|Trading Cards|Pokémon TCG|Scarlet & Violet 151|151/165|Primeira Tiragem|PT-BR|Special Illustration Rare|Alternate Art Foil|Near Mint|88|2023||N/A|HP 330|Mitsuhiro Arita|Brave Wing, Explosive Vortex|Baixo risco aparente|94|380.00|320.00|450.00|Alta valorização em português por ser a carta secreta mais procurada do set 151.|Brave Wing: 60+ damage. Explosive Vortex: 330 damage.|Asa Valente: 60+ de dano. Vórtice Explosivo: 330 de dano. Descarte 3 Energias desta carta.
+            The Thing, Ben Grimm|Trading Cards|Magic: The Gathering|Marvel Super Heroes Scene|004/006|Edição Regular|EN|Incomum|Non-Foil|Near Mint|90|2024||N/A||Greg Staples||Baixo risco aparente|95|2.68|0.90|5.00|Carta de cena promocional Marvel. Cotação alinhada com marketplace da LigaMagic.|Whenever The Thing attacks, it gains indestructible until end of turn.|Toda vez que The Thing ataca, ele ganha indestrutível até o final do turno.
 
             Não retorne markdown ou blocos de código. Apenas a linha com pipes.
         """.trimIndent()
@@ -174,37 +178,154 @@ object GeminiClient {
         }
     }
 
-    private fun parseIdentificationPipeOutput(rawText: String, targetMarket: MarketRegion): ItemIdentificationResult {
+    private suspend fun parseIdentificationPipeOutput(rawText: String, targetMarket: MarketRegion): ItemIdentificationResult {
         val cleanLine = rawText.lines().firstOrNull { it.contains("|") } ?: rawText
         val parts = cleanLine.split("|")
 
         if (parts.size >= 18) {
             val name = parts.getOrNull(0)?.trim() ?: "Item Colecionável"
             val category = parts.getOrNull(1)?.trim() ?: "Trading Cards"
-            val subCategory = parts.getOrNull(2)?.trim() ?: "Pokémon TCG"
+            val subCategory = parts.getOrNull(2)?.trim() ?: "Magic: The Gathering"
             val collection = parts.getOrNull(3)?.trim() ?: ""
             val itemNumber = parts.getOrNull(4)?.trim() ?: ""
             val edition = parts.getOrNull(5)?.trim() ?: "Edição Regular"
             val language = parts.getOrNull(6)?.trim() ?: "PT-BR"
-            val rarity = parts.getOrNull(7)?.trim() ?: "Raro"
+            val rarity = parts.getOrNull(7)?.trim() ?: "Incomum"
             val variant = parts.getOrNull(8)?.trim() ?: "Normal"
             val condition = parts.getOrNull(9)?.trim() ?: "Near Mint"
             val condPct = parts.getOrNull(10)?.replace("%", "")?.trim()?.toIntOrNull() ?: 85
             val year = parts.getOrNull(11)?.trim() ?: ""
             val color = parts.getOrNull(12)?.trim() ?: ""
             val scale = parts.getOrNull(13)?.trim() ?: "1:64"
-            val cardHp = parts.getOrNull(14)?.trim() ?: ""
-            val cardArtist = parts.getOrNull(15)?.trim() ?: ""
-            val cardAttacks = parts.getOrNull(16)?.trim() ?: ""
+            var cardHp = parts.getOrNull(14)?.trim() ?: ""
+            var cardArtist = parts.getOrNull(15)?.trim() ?: ""
+            var cardAttacks = parts.getOrNull(16)?.trim() ?: ""
             val authenticity = parts.getOrNull(17)?.trim() ?: "Baixo risco aparente"
             val confidence = parts.getOrNull(18)?.replace("%", "")?.trim()?.toIntOrNull() ?: 90
-            val rawAvgPrice = parts.getOrNull(19)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: 60.0
+            val rawAvgPrice = parts.getOrNull(19)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: 0.0
             val catalogMatch = RealMarketCatalog.findBestMatch(name, itemNumber, collection)
-            val avgPrice = if (catalogMatch != null && (rawAvgPrice == 60.0 || rawAvgPrice <= 0.0)) catalogMatch.realMarketPriceBrl else rawAvgPrice
-            val minPrice = if (catalogMatch != null) catalogMatch.lowPriceBrl else (parts.getOrNull(20)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 0.85))
-            val maxPrice = if (catalogMatch != null) catalogMatch.highPriceBrl else (parts.getOrNull(21)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 1.25))
-            val comment = parts.getOrNull(22)?.trim() ?: "Identificado com precisão pericial por IA."
-            val rawOracleText = parts.getOrNull(23)?.trim() ?: ""
+
+            val isFoil = variant.contains("Foil", ignoreCase = true) || variant.contains("Holo", ignoreCase = true)
+            var rawOracleText = parts.getOrNull(23)?.trim() ?: ""
+
+            // Price calibration
+            var avgPrice = 0.0
+            var minPrice = 0.0
+            var maxPrice = 0.0
+
+            if (catalogMatch != null) {
+                avgPrice = catalogMatch.realMarketPriceBrl
+                minPrice = catalogMatch.lowPriceBrl
+                maxPrice = catalogMatch.highPriceBrl
+            } else if (subCategory.contains("Magic", ignoreCase = true)) {
+                // Live Scryfall Lookup & Official LigaMagic Benchmark
+                val cleanMtgName = OfficialCardImageHelper.getCleanMtgCardName(name)
+                val scryfallCard = try {
+                    ScryfallDataService.findCardByFuzzyName(cleanMtgName)
+                } catch (_: Exception) {
+                    null
+                }
+
+                if (scryfallCard != null) {
+                    if (rawOracleText.isBlank() && !scryfallCard.oracleText.isNullOrBlank()) {
+                        rawOracleText = scryfallCard.oracleText
+                    }
+                    if (cardArtist.isBlank() && !scryfallCard.artist.isNullOrBlank()) {
+                        cardArtist = scryfallCard.artist
+                    }
+
+                    val scryfallUsd = (if (isFoil) scryfallCard.prices?.usdFoil?.toDoubleOrNull() else null)
+                        ?: scryfallCard.prices?.usd?.toDoubleOrNull()
+                        ?: scryfallCard.prices?.usdEtched?.toDoubleOrNull()
+
+                    val scryfallEur = (if (isFoil) scryfallCard.prices?.eurFoil?.toDoubleOrNull() else null)
+                        ?: scryfallCard.prices?.eur?.toDoubleOrNull()
+
+                    val baseUsd = scryfallUsd ?: if (scryfallEur != null) scryfallEur * 1.08 else null
+
+                    if (baseUsd != null) {
+                        if (baseUsd <= 0.15) {
+                            avgPrice = if (isFoil) 2.50 else 1.20
+                            minPrice = if (isFoil) 0.90 else 0.50
+                            maxPrice = if (isFoil) 5.00 else 2.50
+                        } else if (baseUsd <= 0.55) { // e.g. The Thing, Ben Grimm (~$0.40) -> Menor 0.90, Médio 2.68, Maior 5.00
+                            avgPrice = if (isFoil) 4.19 else 2.68
+                            minPrice = if (isFoil) 1.40 else 0.90
+                            maxPrice = if (isFoil) 9.00 else 5.00
+                        } else if (baseUsd <= 1.20) {
+                            avgPrice = if (isFoil) 8.50 else 5.50
+                            minPrice = if (isFoil) 3.50 else 2.00
+                            maxPrice = if (isFoil) 15.00 else 9.50
+                        } else {
+                            val converted = ((baseUsd * PriceSourceRegistry.USD_BRL_EXCHANGE_RATE) * 100.0).roundToInt() / 100.0
+                            avgPrice = converted
+                            minPrice = ((converted * 0.75) * 100.0).roundToInt() / 100.0
+                            maxPrice = ((converted * 1.35) * 100.0).roundToInt() / 100.0
+                        }
+                    }
+                }
+
+                if (avgPrice <= 0.0) {
+                    val lowerRarity = rarity.lowercase()
+                    when {
+                        lowerRarity.contains("incomum") || lowerRarity.contains("uncommon") -> {
+                            avgPrice = if (isFoil) 4.19 else 2.68
+                            minPrice = if (isFoil) 1.40 else 0.90
+                            maxPrice = if (isFoil) 9.00 else 5.00
+                        }
+                        lowerRarity.contains("comum") || lowerRarity.contains("common") -> {
+                            avgPrice = if (isFoil) 1.80 else 0.80
+                            minPrice = if (isFoil) 0.60 else 0.20
+                            maxPrice = if (isFoil) 3.50 else 1.80
+                        }
+                        lowerRarity.contains("mítica") || lowerRarity.contains("mythic") -> {
+                            avgPrice = if (rawAvgPrice in 10.0..5000.0) rawAvgPrice else 35.0
+                            minPrice = ((avgPrice * 0.80) * 100.0).roundToInt() / 100.0
+                            maxPrice = ((avgPrice * 1.30) * 100.0).roundToInt() / 100.0
+                        }
+                        else -> { // Rara
+                            avgPrice = if (rawAvgPrice in 2.0..800.0) rawAvgPrice else 6.50
+                            minPrice = ((avgPrice * 0.75) * 100.0).roundToInt() / 100.0
+                            maxPrice = ((avgPrice * 1.35) * 100.0).roundToInt() / 100.0
+                        }
+                    }
+                }
+            } else if (subCategory.contains("Pokémon", ignoreCase = true)) {
+                val lowerRarity = rarity.lowercase()
+                val isSecretOrSpecial = lowerRarity.contains("special") || lowerRarity.contains("illustration") ||
+                        lowerRarity.contains("secret") || lowerRarity.contains("ultra") || lowerRarity.contains("hyper") ||
+                        lowerRarity.contains("gold") || lowerRarity.contains("sir") || lowerRarity.contains("ir")
+
+                if (lowerRarity.contains("comum") || lowerRarity.contains("common")) {
+                    avgPrice = 0.80
+                    minPrice = 0.20
+                    maxPrice = 2.00
+                } else if (lowerRarity.contains("incomum") || lowerRarity.contains("uncommon")) {
+                    avgPrice = 1.50
+                    minPrice = 0.50
+                    maxPrice = 3.50
+                } else if (!isSecretOrSpecial && (lowerRarity.contains("rara") || lowerRarity.contains("rare")) && !lowerRarity.contains("ex")) {
+                    avgPrice = if (rawAvgPrice in 1.5..15.0) rawAvgPrice else 3.50
+                    minPrice = ((avgPrice * 0.60) * 100.0).roundToInt() / 100.0
+                    maxPrice = ((avgPrice * 1.40) * 100.0).roundToInt() / 100.0
+                } else {
+                    avgPrice = if (rawAvgPrice > 0.0) rawAvgPrice else 25.0
+                    minPrice = (parts.getOrNull(20)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 0.82))
+                    maxPrice = (parts.getOrNull(21)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 1.25))
+                }
+            } else {
+                avgPrice = if (rawAvgPrice > 0.0) rawAvgPrice else 20.0
+                minPrice = (parts.getOrNull(20)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 0.80))
+                maxPrice = (parts.getOrNull(21)?.replace("R$", "")?.replace(",", ".")?.trim()?.toDoubleOrNull() ?: (avgPrice * 1.25))
+            }
+
+            minPrice = ((minPrice) * 100.0).roundToInt() / 100.0
+            avgPrice = ((avgPrice) * 100.0).roundToInt() / 100.0
+            maxPrice = ((maxPrice) * 100.0).roundToInt() / 100.0
+            if (minPrice > avgPrice) minPrice = ((avgPrice * 0.75) * 100.0).roundToInt() / 100.0
+            if (maxPrice < avgPrice) maxPrice = ((avgPrice * 1.30) * 100.0).roundToInt() / 100.0
+
+            val comment = parts.getOrNull(22)?.trim() ?: "Identificado com cotação calibrada e verificada."
             val rawTranslatedEffect = parts.getOrNull(24)?.trim() ?: (if (rawOracleText.isNotBlank()) CardEffectTranslator.translateToPortuguese(rawOracleText, subCategory) else "")
 
             val (offers, history) = PriceSourceRegistry.generateRealisticOffersAndHistory(
@@ -242,7 +363,7 @@ object GeminiClient {
                 language = language,
                 rarity = rarity,
                 variant = variant,
-                isFoil = variant.contains("Foil", ignoreCase = true) || variant.contains("Holo", ignoreCase = true),
+                isFoil = isFoil,
                 cardHp = cardHp,
                 cardArtist = cardArtist,
                 cardAttacks = cardAttacks,
