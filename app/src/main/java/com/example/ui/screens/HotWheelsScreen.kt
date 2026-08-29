@@ -30,6 +30,7 @@ import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.ViewMode
+import com.example.ui.components.ItemGridCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -311,115 +312,11 @@ fun HotWheelsGridCard(
     currency: com.example.data.AppCurrency,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .testTag("hotwheels_card_${item.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-                    .background(Color(0xFF1E293B)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (item.imageUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(item.imageUri),
-                        contentDescription = item.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(36.dp))
-                        Text(if (item.year.isNotBlank()) item.year else "Hot Wheels", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                    }
-                }
-
-                if (item.rarity.contains("Treasure", true) || item.variant.contains("Treasure", true)) {
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(6.dp),
-                        shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFFEF4444)
-                    ) {
-                        Text(
-                            text = if (item.rarity.contains("Super", true)) "STH" else "TH",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "Hot Wheels",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFEF4444),
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = item.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (item.year.isNotBlank()) item.year else "2025",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (item.variant.isNotBlank()) item.variant else "Mainline",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 1
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = currency.formatValue(item.estimatedValue),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    if (item.quantity > 1) {
-                        Text(
-                            text = "x${item.quantity}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            }
-        }
-    }
+    ItemGridCard(
+        item = item,
+        currency = currency,
+        onClick = onClick
+    )
 }
 
 @Composable

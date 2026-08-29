@@ -30,6 +30,7 @@ import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.ViewMode
+import com.example.ui.components.ItemGridCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,53 +149,14 @@ fun OtherCollectiblesScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(filteredList, key = { it.id }) { item ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth().clickable {
+                        ItemGridCard(
+                            item = item,
+                            currency = currency,
+                            onClick = {
                                 viewModel.selectedItem.value = item
                                 navController.navigate(Routes.ITEM_DETAIL)
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(130.dp)
-                                        .background(Color(0xFF064E3B)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (item.imageUri != null) {
-                                        Image(
-                                            painter = rememberAsyncImagePainter(item.imageUri),
-                                            contentDescription = item.name,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(Icons.Default.Category, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(36.dp))
-                                            Text(item.subCategory.ifBlank { "Colecionável" }, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
-                                        }
-                                    }
-                                }
-
-                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-                                    Text("${item.subCategory} • ${item.condition}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(currency.formatValue(item.estimatedValue), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-                                        if (item.quantity > 1) {
-                                            Text("x${item.quantity}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                                        }
-                                    }
-                                }
                             }
-                        }
+                        )
                     }
                 }
             }

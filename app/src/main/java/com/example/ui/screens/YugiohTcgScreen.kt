@@ -30,6 +30,7 @@ import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.ViewMode
+import com.example.ui.components.ItemGridCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,10 +151,14 @@ fun YugiohTcgScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(filteredList, key = { it.id }) { item ->
-                        PokemonCardGridItem(item, currency) {
-                            viewModel.selectedItem.value = item
-                            navController.navigate(Routes.ITEM_DETAIL)
-                        }
+                        ItemGridCard(
+                            item = item,
+                            currency = currency,
+                            onClick = {
+                                viewModel.selectedItem.value = item
+                                navController.navigate(Routes.ITEM_DETAIL)
+                            }
+                        )
                     }
                 }
             }

@@ -38,6 +38,7 @@ import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.ViewMode
+import com.example.ui.components.ItemGridCard
 import com.example.ui.components.ScryfallCardDetailDialog
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -682,8 +683,9 @@ fun MagicTcgScreen(
                             } else {
                                 LazyVerticalGrid(
                                     columns = GridCells.Adaptive(150.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = PaddingValues(bottom = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     items(cardsInActiveSet, key = { it.id }) { card ->
@@ -863,20 +865,21 @@ fun ScryfallSetCardGridItem(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
+                    .aspectRatio(2.5f / 3.5f)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                     .background(Color(0xFF1E1E2E)),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
                     model = card.getHighResImage(),
                     contentDescription = card.name,
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             }
 
             Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(card.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(card.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1036,48 +1039,9 @@ private fun MagicCardGridItem(
     currency: com.example.data.AppCurrency,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .background(Color(0xFF2E1065)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (item.imageUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(item.imageUri),
-                        contentDescription = item.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(36.dp))
-                        Text("MTG", style = MaterialTheme.typography.labelSmall, color = Color.White)
-                    }
-                }
-            }
-
-            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("${item.collection} • #${item.itemNumber}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(currency.formatValue(item.estimatedValue), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-                    Text(item.rarity, style = MaterialTheme.typography.labelSmall, color = Color(0xFFEF4444))
-                }
-            }
-        }
-    }
+    ItemGridCard(
+        item = item,
+        currency = currency,
+        onClick = onClick
+    )
 }

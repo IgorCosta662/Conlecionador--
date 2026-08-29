@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.data.Item
 import com.example.ui.CollectorViewModel
@@ -346,16 +347,17 @@ fun PokemonCardGridItem(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
+                    .aspectRatio(2.5f / 3.5f)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                     .background(Color(0xFF1E293B)),
                 contentAlignment = Alignment.Center
             ) {
                 if (!resolvedImageUrl.isNullOrBlank()) {
-                    Image(
-                        painter = rememberAsyncImagePainter(resolvedImageUrl),
+                    AsyncImage(
+                        model = resolvedImageUrl,
                         contentDescription = item.name,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
+                        contentScale = ContentScale.Crop
                     )
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -374,10 +376,13 @@ fun PokemonCardGridItem(
                         color = Color.Black.copy(alpha = 0.75f)
                     ) {
                         Text(
-                            text = item.itemNumber,
+                            text = "#${item.itemNumber}",
                             style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
                             color = Color.White,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -393,7 +398,9 @@ fun PokemonCardGridItem(
                     text = item.name,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
 
                 Row(
@@ -404,13 +411,15 @@ fun PokemonCardGridItem(
                     Text(
                         text = "${item.languageFlag} ${item.languageDisplayName}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
                     Text(
                         text = item.rarity,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF59E0B)
+                        color = Color(0xFFF59E0B),
+                        maxLines = 1
                     )
                 }
 
@@ -423,13 +432,15 @@ fun PokemonCardGridItem(
                         text = currency.formatValue(item.estimatedValue),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 14.sp
                     )
                     if (item.quantity > 1) {
                         Text(
                             text = "x${item.quantity}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1
                         )
                     }
                 }
@@ -444,6 +455,14 @@ fun PokemonCardListItem(
     currency: com.example.data.AppCurrency,
     onClick: () -> Unit
 ) {
+    val resolvedImageUrl = remember(item.imageUri, item.name, item.subCategory, item.collection, item.itemNumber) {
+        if (!item.imageUri.isNullOrBlank()) {
+            item.imageUri
+        } else {
+            OfficialCardImageHelper.getOfficialImageUrl(item.name, item.subCategory, item.collection, item.itemNumber)
+        }
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -460,25 +479,43 @@ fun PokemonCardListItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
+                    .size(width = 44.dp, height = 60.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFFEF3C7)),
+                    .background(Color(0xFF1E293B)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(24.dp))
+                if (!resolvedImageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = resolvedImageUrl,
+                        contentDescription = item.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(Icons.Default.Style, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(24.dp))
+                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(
+                    item.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
                 Text(
                     "${item.collection} • #${item.itemNumber} • [${item.language}]",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
                     "${item.rarity} | ${item.condition}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFD97706)
+                    color = Color(0xFFD97706),
+                    maxLines = 1
                 )
             }
 

@@ -66,7 +66,7 @@ fun CollectorApp(viewModel: CollectorViewModel) {
     )
 
     fun navigateToTab(targetRoute: String) {
-        if (targetRoute == Routes.SCANNER) {
+        if (targetRoute != Routes.SCANNER) {
             viewModel.resetScanState()
         }
         if (currentRoute != targetRoute) {
@@ -107,20 +107,11 @@ fun CollectorApp(viewModel: CollectorViewModel) {
 
                     NavigationBarItem(
                         icon = {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (currentRoute == Routes.SCANNER) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.CameraAlt,
-                                        contentDescription = "Escanear",
-                                        tint = if (currentRoute == Routes.SCANNER) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = "Escanear",
+                                modifier = Modifier.size(24.dp)
+                            )
                         },
                         label = { Text("Scanner") },
                         selected = currentRoute == Routes.SCANNER,

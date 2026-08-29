@@ -38,6 +38,7 @@ import com.example.ui.Routes
 import com.example.ui.SortOption
 import com.example.ui.ViewMode
 import com.example.ui.components.ItemCard
+import com.example.ui.components.ItemGridCard
 
 enum class OrganizationGrouping(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     BY_CATEGORY_SUB("Categoria & Marca", Icons.Default.Category),
@@ -563,14 +564,14 @@ fun CollectionScreen(
                         when (currentViewMode) {
                             ViewMode.GRID -> {
                                 LazyVerticalGrid(
-                                    columns = GridCells.Adaptive(minSize = 160.dp),
+                                    columns = GridCells.Adaptive(minSize = 150.dp),
                                     modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     items(displayFilteredItems, key = { it.id }) { item ->
-                                        ItemCard(
+                                        ItemGridCard(
                                             item = item,
                                             currency = selectedCurrency,
                                             onClick = {
@@ -925,7 +926,30 @@ private fun OrganizedGroupedView(
 
                                         // Subgroup Cards Rendered according to ViewMode
                                         when (viewMode) {
-                                            ViewMode.GRID, ViewMode.LIST -> {
+                                            ViewMode.GRID -> {
+                                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                    subCards.chunked(2).forEach { rowCards ->
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                        ) {
+                                                            rowCards.forEach { item ->
+                                                                Box(modifier = Modifier.weight(1f)) {
+                                                                    ItemGridCard(
+                                                                        item = item,
+                                                                        currency = currency,
+                                                                        onClick = { onItemClick(item) }
+                                                                    )
+                                                                }
+                                                            }
+                                                            if (rowCards.size == 1) {
+                                                                Spacer(modifier = Modifier.weight(1f))
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            ViewMode.LIST -> {
                                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                                     subCards.forEach { item ->
                                                         ItemListItem(

@@ -30,6 +30,7 @@ import com.example.data.Item
 import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.ViewMode
+import com.example.ui.components.ItemGridCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,48 +197,9 @@ private fun ActionFigureGridCard(
     currency: com.example.data.AppCurrency,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .background(Color(0xFF3B0764)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (item.imageUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(item.imageUri),
-                        contentDescription = item.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(36.dp))
-                        Text(item.subCategory, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
-                    }
-                }
-            }
-
-            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("${item.subCategory} • ${if (item.scale.isNotBlank()) item.scale else item.condition}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(currency.formatValue(item.estimatedValue), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-                    if (item.quantity > 1) {
-                        Text("x${item.quantity}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                    }
-                }
-            }
-        }
-    }
+    ItemGridCard(
+        item = item,
+        currency = currency,
+        onClick = onClick
+    )
 }

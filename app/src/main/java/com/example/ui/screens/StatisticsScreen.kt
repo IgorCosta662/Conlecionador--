@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,13 +10,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +26,8 @@ import com.example.ui.CollectorViewModel
 import com.example.ui.Routes
 import com.example.ui.components.CategoryDistributionChart
 import com.example.ui.components.PriceEvolutionChart
+import com.example.util.CollectionExporter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,8 +35,16 @@ fun StatisticsScreen(
     viewModel: CollectorViewModel,
     navController: NavController
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     val items by viewModel.allItems.collectAsStateWithLifecycle()
     val currency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+
+    var showExportModal by remember { mutableStateOf(false) }
+    var selectedExportFormat by remember { mutableStateOf("PDF") } // "PDF" or "EXCEL"
+    var isGeneratingExport by remember { mutableStateOf(false) }
 
     val totalItems = items.sumOf { it.quantity }
     val totalEstValue = items.sumOf { it.totalEstimatedValue }
@@ -58,13 +69,65 @@ fun StatisticsScreen(
             .sortedByDescending { it.second }
     }
 
+    fun handleExport(format: String) {
+        if (items.isEmpty()) {
+            Toast.makeText(context, "A coleção está vazia para exportação.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        isGeneratingExport = true
+        coroutineScope.launch {
+            try {
+                if (format == "PDF") {
+                    val pdfFile = CollectionExporter.exportToPdf(context, items, currency)
+                    CollectionExporter.shareFile(
+                        context = context,
+                        file = pdfFile,
+                        mimeType = "application/pdf",
+                        title = "Relatório de Patrimônio da Coleção (PDF)"
+                    )
+                    snackbarHostState.showSnackbar("Relatório PDF gerado com sucesso!")
+                } else {
+                    val csvFile = CollectionExporter.exportToExcelCsv(context, items, currency)
+                    CollectionExporter.shareFile(
+                        context = context,
+                        file = csvFile,
+                        mimeType = "text/csv",
+                        title = "Planilha da Coleção Completa (Excel)"
+                    )
+                    snackbarHostState.showSnackbar("Planilha Excel/CSV gerada com sucesso!")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Erro ao gerar arquivo: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            } finally {
+                isGeneratingExport = false
+                showExportModal = false
+            }
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text("Estatísticas da Coleção", fontWeight = FontWeight.Bold)
+                    }
+                },
+                actions = {
+                    FilledTonalButton(
+                        onClick = {
+                            selectedExportFormat = "PDF"
+                            showExportModal = true
+                        },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Exportar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             )
@@ -119,6 +182,168 @@ fun StatisticsScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (profit >= 0) Color(0xFF10B981) else MaterialTheme.colorScheme.error
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Export & Personal Control Section
+            item {
+                Text(
+                    "Exportação & Controle Pessoal",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text(
+                            "Baixe resumos completos e relatórios da sua coleção para inventário pessoal, seguro ou análise financeira:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // PDF Export Button
+                            OutlinedCard(
+                                onClick = {
+                                    selectedExportFormat = "PDF"
+                                    showExportModal = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.outlinedCardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.PictureAsPdf,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Text(
+                                        "Relatório PDF",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                    Text(
+                                        "Documento formal com sumário executivo e catálogo para impressão.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        lineHeight = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            "Baixar PDF",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFEF4444)
+                                        )
+                                        Icon(
+                                            Icons.Default.FileDownload,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Excel / CSV Export Button
+                            OutlinedCard(
+                                onClick = {
+                                    selectedExportFormat = "EXCEL"
+                                    showExportModal = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.outlinedCardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFF10B981).copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.TableChart,
+                                            contentDescription = null,
+                                            tint = Color(0xFF10B981),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Text(
+                                        "Planilha Excel",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                    Text(
+                                        "Arquivo CSV com todas as colunas de preços, cotações e localização.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        lineHeight = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            "Baixar Excel",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF10B981)
+                                        )
+                                        Icon(
+                                            Icons.Default.FileDownload,
+                                            contentDescription = null,
+                                            tint = Color(0xFF10B981),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -304,6 +529,136 @@ fun StatisticsScreen(
                 }
             }
         }
+    }
+
+    // Export Options Modal Dialog / BottomSheet
+    if (showExportModal) {
+        AlertDialog(
+            onDismissRequest = { if (!isGeneratingExport) showExportModal = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(
+                        if (selectedExportFormat == "PDF") Icons.Default.PictureAsPdf else Icons.Default.TableChart,
+                        contentDescription = null,
+                        tint = if (selectedExportFormat == "PDF") Color(0xFFEF4444) else Color(0xFF10B981)
+                    )
+                    Text(
+                        if (selectedExportFormat == "PDF") "Exportar Relatório PDF" else "Exportar Planilha Excel",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Format Switcher Tabs
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = selectedExportFormat == "PDF",
+                            onClick = { selectedExportFormat = "PDF" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) {
+                            Text("PDF (.pdf)")
+                        }
+                        SegmentedButton(
+                            selected = selectedExportFormat == "EXCEL",
+                            onClick = { selectedExportFormat = "EXCEL" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) {
+                            Text("Excel (.csv)")
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Itens a exportar:", style = MaterialTheme.typography.bodySmall)
+                                Text("${items.size} registros ($totalItems unidades)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Patrimônio total:", style = MaterialTheme.typography.bodySmall)
+                                Text(currency.formatValue(totalEstValue), fontWeight = FontWeight.Bold, color = Color(0xFF10B981), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Formato de saída:", style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (selectedExportFormat == "PDF") "Documento A4 Diagramado" else "Planilha CSV (UTF-8)",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        if (selectedExportFormat == "PDF")
+                            "O arquivo PDF contém o cabeçalho executivo, gráfico de rentabilidade e o inventário completo pronto para impressão ou envio por e-mail."
+                        else
+                            "A planilha gerada possui codificação UTF-8 compatível com Microsoft Excel, Google Planilhas e LibreOffice com todas as colunas de compra, cotação e locais de armazenamento.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+
+                    if (isGeneratingExport) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Processando arquivo...", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { handleExport(selectedExportFormat) },
+                    enabled = !isGeneratingExport && items.isNotEmpty()
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Baixar / Compartilhar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        val previewText = if (selectedExportFormat == "PDF") {
+                            viewModel.generatePortfolioReportText(currency)
+                        } else {
+                            buildString {
+                                append("ID;Nome;Categoria;SubCategoria;Coleção;Quantidade;PrecoPago;Cotacao;ValorTotal;Local\n")
+                                items.forEach {
+                                    append("${it.id};\"${it.name}\";\"${it.type}\";\"${it.subCategory}\";\"${it.collection}\";${it.quantity};${it.purchasePrice};${it.estimatedValue};${it.totalEstimatedValue};\"${it.storageLocation}\"\n")
+                                }
+                            }
+                        }
+                        CollectionExporter.copyToClipboard(context, "Resumo da Coleção", previewText)
+                        showExportModal = false
+                    },
+                    enabled = !isGeneratingExport
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Copiar Texto")
+                }
+            }
+        )
     }
 }
 

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -558,8 +559,9 @@ fun CatalogScreen(
                         } else {
                             LazyVerticalGrid(
                                 columns = GridCells.Adaptive(150.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                contentPadding = PaddingValues(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(filteredCardsInSet, key = { it.id }) { card ->
@@ -575,21 +577,28 @@ fun CatalogScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(150.dp)
+                                                    .aspectRatio(2.5f / 3.5f)
+                                                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                                     .background(Color(0xFF1E1E2E)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 AsyncImage(
                                                     model = card.getHighResImage(),
                                                     contentDescription = card.name,
-                                                    contentScale = ContentScale.Fit,
+                                                    contentScale = ContentScale.Crop,
                                                     modifier = Modifier.fillMaxSize()
                                                 )
                                             }
 
                                             Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                Text(card.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                Text("#${card.collectorNumber} • ${card.rarityPt}", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1)
+                                                Text(card.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text("#${card.collectorNumber} • ${card.rarityPt}", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1)
+                                                }
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -849,10 +858,10 @@ fun CatalogScreen(
                     }
                 } else if (isGridView) {
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(160.dp),
-                        contentPadding = PaddingValues(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        columns = GridCells.Adaptive(150.dp),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(filteredEntries, key = { "${it.collection}_${it.itemNumber}_${it.name}" }) { entry ->
@@ -1343,30 +1352,40 @@ fun CatalogGridCard(
         OfficialCardImageHelper.getOfficialImageUrl(entry.name, entry.subCategory, entry.collection, entry.itemNumber)
     }
 
+    val isCardItem = entry.category.contains("Carta", ignoreCase = true) ||
+            entry.category.contains("Card", ignoreCase = true) ||
+            entry.category.contains("TCG", ignoreCase = true) ||
+            entry.subCategory.contains("TCG", ignoreCase = true) ||
+            entry.subCategory.contains("Card", ignoreCase = true) ||
+            entry.subCategory.contains("Pokémon", ignoreCase = true) ||
+            entry.subCategory.contains("Pokemon", ignoreCase = true) ||
+            entry.subCategory.contains("Magic", ignoreCase = true) ||
+            entry.subCategory.contains("Yu-Gi-Oh", ignoreCase = true)
+
     Card(
         shape = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onCardClick() }
     ) {
         Column {
-            // Image Banner
+            // Image Banner with fixed 2.5:3.5 aspect ratio
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
-                    .background(Color(0xFF1E1E2E)),
+                    .aspectRatio(2.5f / 3.5f)
+                    .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                    .background(Color(0xFF181824)),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
                     model = officialUrl,
                     contentDescription = entry.name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(4.dp)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
 
                 // Year & Number Badge
@@ -1408,15 +1427,18 @@ fun CatalogGridCard(
                 }
             }
 
-            // Info Body
+            // Info Body with aligned heights
             Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = entry.name,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
+                    minLines = 2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1438,7 +1460,7 @@ fun CatalogGridCard(
                     fontSize = 11.sp
                 )
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // Price and Add Button
                 Row(
