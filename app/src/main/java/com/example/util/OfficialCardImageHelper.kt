@@ -7,6 +7,15 @@ import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+data class OfficialCardPrintOption(
+    val id: String = "",
+    val title: String = "",
+    val setName: String = "",
+    val cardNumber: String = "",
+    val imageUrl: String = "",
+    val rarity: String = ""
+)
+
 object OfficialCardImageHelper {
 
     // Common Portuguese to English Magic: The Gathering card name dictionary
@@ -441,33 +450,61 @@ object OfficialCardImageHelper {
             when (franchise) {
                 "Magic: The Gathering" -> {
                     val cleanMtgName = getCleanMtgCardName(cleanName)
-                    // 1. Try Scryfall fuzzy search
+                    // 1. Try Scryfall fuzzy search with translated/cleaned name
                     val fuzzyCard = ScryfallDataService.findCardByFuzzyName(cleanMtgName)
-                    if (fuzzyCard?.imageUris?.large?.isNotBlank() == true) {
-                        return@withContext fuzzyCard.imageUris.large
-                    }
-                    if (fuzzyCard?.imageUris?.normal?.isNotBlank() == true) {
-                        return@withContext fuzzyCard.imageUris.normal
+                    val fuzzyImage = fuzzyCard?.getHighResImage()
+                    if (!fuzzyImage.isNullOrBlank()) {
+                        return@withContext fuzzyImage
                     }
 
-                    // 2. Try general search
-                    val searchResults = ScryfallDataService.searchCardsByName(cleanMtgName, maxResults = 3)
-                    val match = searchResults.firstOrNull { it.imageUris?.large?.isNotBlank() == true || it.imageUris?.normal?.isNotBlank() == true }
-                    if (match != null) {
-                        return@withContext match.imageUris?.large ?: match.imageUris?.normal
+                    // 2. Try Scryfall fuzzy search with raw name
+                    if (cleanMtgName != cleanName) {
+                        val rawFuzzyCard = ScryfallDataService.findCardByFuzzyName(cleanName)
+                        val rawFuzzyImage = rawFuzzyCard?.getHighResImage()
+                        if (!rawFuzzyImage.isNullOrBlank()) {
+                            return@withContext rawFuzzyImage
+                        }
                     }
+
+                    // 3. Try general search across sets
+                    val searchResults = ScryfallDataService.searchCardsByName(cleanMtgName, maxResults = 5)
+                    val match = searchResults.firstOrNull { it.getHighResImage()?.isNotBlank() == true }
+                    if (match != null) {
+                        return@withContext match.getHighResImage()
+                    }
+
+                    // 4. Fallback direct Scryfall redirect URL
+                    val encodedQuery = try {
+                        URLEncoder.encode(cleanMtgName, StandardCharsets.UTF_8.toString())
+                    } catch (_: Exception) {
+                        cleanMtgName
+                    }
+                    return@withContext "https://api.scryfall.com/cards/named?fuzzy=$encodedQuery&format=image&version=large"
                 }
 
                 "Pokémon TCG" -> {
-                    // Query TCGDex API
-                    val searchResults = TcgOnlineService.searchPokemonCards(cleanName)
-                    val match = searchResults.firstOrNull { it.image != null && it.image.isNotBlank() }
-                    if (match != null) {
-                        val cardDetail = TcgOnlineService.getPokemonCardDetail(match.id)
-                        if (cardDetail?.image != null && cardDetail.image.isNotBlank()) {
-                            return@withContext "${cardDetail.image}/high.webp"
+                    val pName = extractPokemonName(cleanName) ?: cleanName
+                    // 1. Query TCGDex API with full name
+                    var searchResults = TcgOnlineService.searchPokemonCards(cleanName)
+                    if (searchResults.isEmpty() && pName != cleanName) {
+                        searchResults = TcgOnlineService.searchPokemonCards(pName)
+                    }
+
+                    // If collection or item number is given, try matching best specific card
+                    val numOnly = itemNumber.split("/").firstOrNull()?.filter { it.isDigit() } ?: ""
+                    val bestMatch = if (numOnly.isNotBlank()) {
+                        searchResults.firstOrNull { it.localId == numOnly || it.id.endsWith("-$numOnly") || it.id.endsWith("/$numOnly") }
+                            ?: searchResults.firstOrNull { it.image != null && it.image.isNotBlank() }
+                    } else {
+                        searchResults.firstOrNull { it.image != null && it.image.isNotBlank() }
+                    }
+
+                    if (bestMatch != null) {
+                        val cardDetail = TcgOnlineService.getPokemonCardDetail(bestMatch.id)
+                        val highImg = cardDetail?.getHighResImage() ?: bestMatch.getHighResImage()
+                        if (!highImg.isNullOrBlank()) {
+                            return@withContext highImg
                         }
-                        return@withContext "${match.image}/high.webp"
                     }
                 }
             }
@@ -475,6 +512,86 @@ object OfficialCardImageHelper {
 
         // Fallback to static URL resolver
         return@withContext getOfficialImageUrl(name, subCategory, collection, itemNumber)
+    }
+
+    /**
+     * Search all available official card printings/editions online (TCGDex for Pokémon, Scryfall for Magic)
+     */
+    suspend fun searchOfficialCardPrintOptions(
+        name: String,
+        subCategory: String,
+        collection: String = "",
+        itemNumber: String = ""
+    ): List<OfficialCardPrintOption> = withContext(Dispatchers.IO) {
+        val cleanName = name.trim()
+        val franchise = detectFranchise(cleanName, subCategory, collection)
+        val list = mutableListOf<OfficialCardPrintOption>()
+
+        try {
+            when (franchise) {
+                "Pokémon TCG" -> {
+                    val pName = extractPokemonName(cleanName) ?: cleanName
+                    var briefs = TcgOnlineService.searchPokemonCards(cleanName)
+                    if (briefs.isEmpty() && pName != cleanName) {
+                        briefs = TcgOnlineService.searchPokemonCards(pName)
+                    }
+
+                    for (brief in briefs) {
+                        val highImg = brief.getHighResImage()
+                        if (!highImg.isNullOrBlank()) {
+                            val cardSet = brief.id.split("-").firstOrNull()?.uppercase() ?: "TCG"
+                            val num = if (brief.localId.isNotBlank()) "#${brief.localId}" else ""
+                            list.add(
+                                OfficialCardPrintOption(
+                                    id = brief.id,
+                                    title = brief.name,
+                                    setName = cardSet,
+                                    cardNumber = num,
+                                    imageUrl = highImg
+                                )
+                            )
+                        }
+                    }
+                }
+
+                "Magic: The Gathering" -> {
+                    val cleanMtgName = getCleanMtgCardName(cleanName)
+                    val scryfallCards = ScryfallDataService.searchCardsByName(cleanMtgName, maxResults = 25)
+                    for (c in scryfallCards) {
+                        val img = c.getHighResImage()
+                        if (!img.isNullOrBlank()) {
+                            list.add(
+                                OfficialCardPrintOption(
+                                    id = c.id,
+                                    title = c.name,
+                                    setName = c.setName.ifBlank { c.set.uppercase() },
+                                    cardNumber = "#${c.collectorNumber}",
+                                    imageUrl = img,
+                                    rarity = c.rarity.replaceFirstChar { it.uppercase() }
+                                )
+                            )
+                        }
+                    }
+                }
+
+                else -> {
+                    val defaultUrl = getOfficialImageUrl(cleanName, subCategory, collection, itemNumber)
+                    if (defaultUrl.isNotBlank()) {
+                        list.add(
+                            OfficialCardPrintOption(
+                                id = "default_1",
+                                title = cleanName,
+                                setName = collection.ifBlank { subCategory },
+                                cardNumber = itemNumber,
+                                imageUrl = defaultUrl
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        list
     }
 
     private fun getPokemonCardImageUrl(name: String, collection: String, number: String): String {
@@ -547,7 +664,7 @@ object OfficialCardImageHelper {
                 }
             }
 
-            // Key iconic direct card matches
+            // Key iconic direct card matches (Real TCG Card Prints)
             lowerName.contains("charizard") && (lowerName.contains("sir") || lowerName.contains("199")) -> "https://assets.tcgdex.net/en/sv/sv03.5/199/high.webp"
             lowerName.contains("charizard") && lowerName.contains("base") -> "https://assets.tcgdex.net/en/base/base1/4/high.webp"
             lowerName.contains("charizard") -> "https://assets.tcgdex.net/en/sv/sv03.5/199/high.webp"
@@ -566,9 +683,38 @@ object OfficialCardImageHelper {
             lowerName.contains("greninja") -> "https://assets.tcgdex.net/en/sv/sv06/214/high.webp"
             lowerName.contains("mewtwo") -> "https://assets.tcgdex.net/en/sv/sv03.5/150/high.webp"
             lowerName.contains("mew") -> "https://assets.tcgdex.net/en/sv/sv03.5/205/high.webp"
+            lowerName.contains("eevee") -> "https://assets.tcgdex.net/en/sv/sv06/188/high.webp"
+            lowerName.contains("snorlax") -> "https://assets.tcgdex.net/en/sv/sv03.5/143/high.webp"
+            lowerName.contains("dragonite") -> "https://assets.tcgdex.net/en/sv/sv03.5/149/high.webp"
+            lowerName.contains("lucario") -> "https://assets.tcgdex.net/en/sv/sv01/114/high.webp"
+            lowerName.contains("gardevoir") -> "https://assets.tcgdex.net/en/sv/sv01/245/high.webp"
+            lowerName.contains("mimikyu") -> "https://assets.tcgdex.net/en/sv/sv02/097/high.webp"
+            lowerName.contains("squirtle") -> "https://assets.tcgdex.net/en/sv/sv03.5/170/high.webp"
+            lowerName.contains("charmander") -> "https://assets.tcgdex.net/en/sv/sv03.5/168/high.webp"
+            lowerName.contains("bulbasaur") -> "https://assets.tcgdex.net/en/sv/sv03.5/166/high.webp"
+            lowerName.contains("gyarados") -> "https://assets.tcgdex.net/en/sv/sv01/225/high.webp"
+            lowerName.contains("alakazam") -> "https://assets.tcgdex.net/en/sv/sv03.5/201/high.webp"
+            lowerName.contains("zapdos") -> "https://assets.tcgdex.net/en/sv/sv03.5/202/high.webp"
+            lowerName.contains("moltres") -> "https://assets.tcgdex.net/en/sv/sv03.5/146/high.webp"
+            lowerName.contains("articuno") -> "https://assets.tcgdex.net/en/sv/sv03.5/144/high.webp"
+            lowerName.contains("raichu") -> "https://assets.tcgdex.net/en/sv/sv02/211/high.webp"
+            lowerName.contains("machamp") -> "https://assets.tcgdex.net/en/base/base1/8/high.webp"
+            lowerName.contains("arceus") -> "https://assets.tcgdex.net/en/swsh/swsh09/166/high.webp"
+            lowerName.contains("giratina") -> "https://assets.tcgdex.net/en/swsh/swsh11/186/high.webp"
+            lowerName.contains("dialga") -> "https://assets.tcgdex.net/en/swsh/swsh10/177/high.webp"
+            lowerName.contains("palkia") -> "https://assets.tcgdex.net/en/swsh/swsh10/167/high.webp"
 
-            // Fallback: Official crystal-clear Pokemon artwork
-            else -> getPokemonArtworkUrl(name)
+            // Fallback: TCGDex standard card print scan
+            else -> {
+                val pName = extractPokemonName(name) ?: name.lowercase().trim()
+                val dexId = pokemonDexMap[pName]
+                if (dexId != null && dexId in 1..151) {
+                    val formatted = String.format(java.util.Locale.US, "%03d", dexId)
+                    "https://assets.tcgdex.net/en/sv/sv03.5/$formatted/high.webp"
+                } else {
+                    getPokemonArtworkUrl(name)
+                }
+            }
         }
     }
 

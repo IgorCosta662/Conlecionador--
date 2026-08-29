@@ -41,6 +41,7 @@ import com.example.ui.Routes
 import com.example.ui.ScanUiState
 import com.example.ui.components.ConfidenceMeter
 import com.example.ui.components.CurrencySelector
+import com.example.ui.components.OfficialCardPrintSelectorModal
 import com.example.ui.components.PriceEvolutionChart
 import com.example.util.CardEffectTranslator
 import com.example.util.OfficialCardImageHelper
@@ -64,11 +65,12 @@ fun ScanResultScreen(
     var backImageUri by remember { mutableStateOf<String?>(null) }
     val detailImages = remember { mutableStateListOf<String>() }
 
-    // Official Web Card Image toggle
-    var preferOfficialImage by remember { mutableStateOf(false) }
-    var customOfficialImageUrl by remember { mutableStateOf<String?>(null) }
+    // Official Web Card Image toggle - Defaults to true for crystal clear scans from official sites
+    var preferOfficialImage by remember { mutableStateOf(true) }
+    var showPrintSelectorModal by remember { mutableStateOf(false) }
     var isSearchingWebImage by remember { mutableStateOf(false) }
     var isTranslatingEffect by remember { mutableStateOf(false) }
+    var showEditEffectDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     val backCameraLauncher = rememberLauncherForActivityResult(
@@ -98,6 +100,29 @@ fun ScanResultScreen(
 
     val successState = scanUiState as ScanUiState.Success
     val itemResult = buffer ?: successState.result
+
+    var customOfficialImageUrl by remember(itemResult.name, itemResult.officialImageUrl) {
+        mutableStateOf(itemResult.officialImageUrl.ifBlank { null })
+    }
+
+    // Auto-fetch high-resolution official image directly from official APIs (Scryfall/Gatherer/TCGDex) on scan completion
+    LaunchedEffect(itemResult.name, itemResult.subCategory, itemResult.collection, itemResult.itemNumber) {
+        if (customOfficialImageUrl.isNullOrBlank()) {
+            isSearchingWebImage = true
+            try {
+                val liveUrl = OfficialCardImageHelper.searchOfficialImageOnline(
+                    itemResult.name,
+                    itemResult.subCategory,
+                    itemResult.collection,
+                    itemResult.itemNumber
+                )
+                if (!liveUrl.isNullOrBlank()) {
+                    customOfficialImageUrl = liveUrl
+                }
+            } catch (_: Exception) {}
+            isSearchingWebImage = false
+        }
+    }
 
     // Duplicate detection check
     val duplicateItem = remember(itemResult, allItems) {
@@ -296,7 +321,7 @@ fun ScanResultScreen(
                             // Badge indicator on top-right of image
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(8.dp)
@@ -306,18 +331,76 @@ fun ScanResultScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = if (preferOfficialImage) Icons.Default.AutoAwesome else Icons.Default.CameraAlt,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Text(
-                                        text = if (isSearchingWebImage) "Buscando Web..." else if (preferOfficialImage) "Imagem Oficial HD" else "Sua Foto",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                    if (isSearchingWebImage) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(12.dp),
+                                            strokeWidth = 1.5.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = "Buscando Scryfall...",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = if (preferOfficialImage) Icons.Default.AutoAwesome else Icons.Default.CameraAlt,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(
+                                            text = if (preferOfficialImage) "Oficial HD (Scryfall)" else "Foto Capturada",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Informative banner when official image is active
+                        if (preferOfficialImage && effectiveOfficialUrl.isNotBlank()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Verified,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "Scan oficial de alta definição (TCG / Print oficial).",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    FilledTonalButton(
+                                        onClick = { showPrintSelectorModal = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Trocar Print", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -326,65 +409,119 @@ fun ScanResultScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            FilledTonalButton(
-                                onClick = {
-                                    preferOfficialImage = !preferOfficialImage
-                                    if (preferOfficialImage && customOfficialImageUrl == null) {
-                                        coroutineScope.launch {
-                                            isSearchingWebImage = true
-                                            val liveUrl = OfficialCardImageHelper.searchOfficialImageOnline(
-                                                itemResult.name,
-                                                itemResult.subCategory,
-                                                itemResult.collection,
-                                                itemResult.itemNumber
-                                            )
-                                            if (!liveUrl.isNullOrBlank()) {
-                                                customOfficialImageUrl = liveUrl
+                            if (preferOfficialImage) {
+                                Button(
+                                    onClick = { preferOfficialImage = false },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhotoCamera,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "Minha Foto",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                FilledTonalButton(
+                                    onClick = { showPrintSelectorModal = true },
+                                    modifier = Modifier.weight(1.1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Collections,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "Mudar Edição",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = {
+                                        preferOfficialImage = true
+                                        if (customOfficialImageUrl == null) {
+                                            coroutineScope.launch {
+                                                isSearchingWebImage = true
+                                                val liveUrl = OfficialCardImageHelper.searchOfficialImageOnline(
+                                                    itemResult.name,
+                                                    itemResult.subCategory,
+                                                    itemResult.collection,
+                                                    itemResult.itemNumber
+                                                )
+                                                if (!liveUrl.isNullOrBlank()) {
+                                                    customOfficialImageUrl = liveUrl
+                                                }
+                                                isSearchingWebImage = false
                                             }
-                                            isSearchingWebImage = false
                                         }
-                                    }
-                                },
-                                modifier = Modifier.weight(1.2f),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (preferOfficialImage) Icons.Default.PhotoCamera else Icons.Default.CloudDownload,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    if (preferOfficialImage) "Ver Minha Foto" else "Buscar Foto Oficial Web",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    },
+                                    modifier = Modifier.weight(1.2f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "Foto Oficial HD",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        preferOfficialImage = true
+                                        showPrintSelectorModal = true
+                                    },
+                                    modifier = Modifier.weight(0.9f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Prints", fontSize = 11.sp)
+                                }
                             }
 
                             OutlinedButton(
                                 onClick = { backCameraLauncher.launch(null) },
-                                modifier = Modifier.weight(0.9f),
+                                modifier = Modifier.weight(0.85f),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                             ) {
-                                Icon(Icons.Default.FlipToBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (backImageUri != null) "Verso OK" else "+ Verso", fontSize = 11.sp)
+                                Icon(Icons.Default.FlipToBack, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(if (backImageUri != null) "Verso OK" else "+ Verso", fontSize = 10.5.sp)
                             }
 
                             OutlinedButton(
                                 onClick = { detailCameraLauncher.launch(null) },
-                                modifier = Modifier.weight(0.9f),
+                                modifier = Modifier.weight(0.85f),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                             ) {
-                                Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (detailImages.isNotEmpty()) "${detailImages.size} Det." else "+ Detalhes", fontSize = 11.sp)
+                                Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(if (detailImages.isNotEmpty()) "${detailImages.size} Det." else "+ Detalhes", fontSize = 10.5.sp)
                             }
                         }
 
@@ -730,45 +867,61 @@ fun ScanResultScreen(
                                     )
                                 }
 
-                                TextButton(
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            isTranslatingEffect = true
-                                            try {
-                                                val result = CardEffectTranslator.searchCardEffectsOnline(
-                                                    name = itemResult.name,
-                                                    subCategory = itemResult.subCategory,
-                                                    collection = itemResult.collection,
-                                                    itemNumber = itemResult.itemNumber
-                                                )
-                                                val updated = itemResult.copy(
-                                                    cardTranslatedEffect = result.translatedEffect.ifBlank {
-                                                        if (itemResult.cardOracleText.isNotBlank()) {
-                                                            CardEffectTranslator.translateToPortuguese(itemResult.cardOracleText, itemResult.subCategory)
-                                                        } else itemResult.cardTranslatedEffect
-                                                    },
-                                                    cardOracleText = if (result.originalText.isNotBlank()) result.originalText else itemResult.cardOracleText,
-                                                    cardAttacks = if (result.cardAttacks.isNotBlank()) result.cardAttacks else itemResult.cardAttacks,
-                                                    cardHp = if (result.cardHp.isNotBlank()) result.cardHp else itemResult.cardHp,
-                                                    cardArtist = if (result.cardArtist.isNotBlank()) result.cardArtist else itemResult.cardArtist
-                                                )
-                                                viewModel.updateCorrectionBuffer(updated)
-                                            } catch (_: Exception) {
-                                            } finally {
-                                                isTranslatingEffect = false
-                                            }
-                                        }
-                                    },
-                                    enabled = !isTranslatingEffect
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    if (isTranslatingEffect) {
-                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                    FilledTonalButton(
+                                        onClick = { showEditEffectDialog = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(13.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Traduzindo...", fontSize = 11.sp)
-                                    } else {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Traduzir / Atualizar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("Editar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    TextButton(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                isTranslatingEffect = true
+                                                try {
+                                                    val result = CardEffectTranslator.searchCardEffectsOnline(
+                                                        name = itemResult.name,
+                                                        subCategory = itemResult.subCategory,
+                                                        collection = itemResult.collection,
+                                                        itemNumber = itemResult.itemNumber
+                                                    )
+                                                    val updated = itemResult.copy(
+                                                        cardTranslatedEffect = result.translatedEffect.ifBlank {
+                                                            if (itemResult.cardOracleText.isNotBlank()) {
+                                                                CardEffectTranslator.translateToPortuguese(itemResult.cardOracleText, itemResult.subCategory)
+                                                            } else itemResult.cardTranslatedEffect
+                                                        },
+                                                        cardOracleText = if (result.originalText.isNotBlank()) result.originalText else itemResult.cardOracleText,
+                                                        cardAttacks = if (result.cardAttacks.isNotBlank()) result.cardAttacks else itemResult.cardAttacks,
+                                                        cardHp = if (result.cardHp.isNotBlank()) result.cardHp else itemResult.cardHp,
+                                                        cardArtist = if (result.cardArtist.isNotBlank()) result.cardArtist else itemResult.cardArtist
+                                                    )
+                                                    viewModel.updateCorrectionBuffer(updated)
+                                                } catch (_: Exception) {
+                                                } finally {
+                                                    isTranslatingEffect = false
+                                                }
+                                            }
+                                        },
+                                        enabled = !isTranslatingEffect,
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        if (isTranslatingEffect) {
+                                            CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Traduzindo...", fontSize = 11.sp)
+                                        } else {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Atualizar IA", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -944,6 +1097,30 @@ fun ScanResultScreen(
         }
     }
 
+    // Modal para "Editar Efeitos / Tradução Manualmente"
+    if (showEditEffectDialog) {
+        CardEffectEditModal(
+            initialTranslatedEffect = itemResult.cardTranslatedEffect,
+            initialOracleText = itemResult.cardOracleText,
+            initialAttacks = itemResult.cardAttacks,
+            initialHp = itemResult.cardHp,
+            initialArtist = itemResult.cardArtist,
+            subCategory = itemResult.subCategory,
+            onDismiss = { showEditEffectDialog = false },
+            onConfirm = { translated, oracle, attacks, hp, artist ->
+                val updated = itemResult.copy(
+                    cardTranslatedEffect = translated,
+                    cardOracleText = oracle,
+                    cardAttacks = attacks,
+                    cardHp = hp,
+                    cardArtist = artist
+                )
+                viewModel.updateCorrectionBuffer(updated)
+                showEditEffectDialog = false
+            }
+        )
+    }
+
     // Modal para "Corrigir Identificação"
     if (showCorrectionDialog) {
         CorrectionModal(
@@ -975,6 +1152,11 @@ fun ScanResultScreen(
                 val chosenOfficial = customOfficialImageUrl ?: officialUrl
                 val finalImageUri = if (preferOfficialImage && chosenOfficial.isNotBlank()) chosenOfficial else successState.savedImageUri
 
+                val extraDetailImages = detailImages.toMutableList()
+                if (preferOfficialImage && !successState.savedImageUri.isNullOrBlank() && !extraDetailImages.contains(successState.savedImageUri)) {
+                    extraDetailImages.add(0, successState.savedImageUri)
+                }
+
                 viewModel.saveIdentifiedItemToCollection(
                     identification = itemResult,
                     quantity = qty,
@@ -983,12 +1165,35 @@ fun ScanResultScreen(
                     notes = notes,
                     imageUri = finalImageUri,
                     backImageUri = backImageUri,
-                    detailImages = detailImages.toList()
+                    detailImages = extraDetailImages.toList()
                 )
                 showAddToCollectionDialog = false
                 navController.navigate(Routes.COLLECTION) {
                     popUpTo(Routes.DASHBOARD)
                 }
+            }
+        )
+    }
+
+    // Modal para Selecionar Print / Edição Oficial da Carta
+    if (showPrintSelectorModal) {
+        val currentEffective = customOfficialImageUrl ?: OfficialCardImageHelper.getOfficialImageUrl(
+            name = itemResult.name,
+            subCategory = itemResult.subCategory,
+            collection = itemResult.collection,
+            itemNumber = itemResult.itemNumber
+        )
+        OfficialCardPrintSelectorModal(
+            initialName = itemResult.name,
+            subCategory = itemResult.subCategory,
+            collection = itemResult.collection,
+            itemNumber = itemResult.itemNumber,
+            currentImageUrl = currentEffective,
+            onDismiss = { showPrintSelectorModal = false },
+            onSelectPrint = { selectedUrl ->
+                customOfficialImageUrl = selectedUrl
+                preferOfficialImage = true
+                showPrintSelectorModal = false
             }
         )
     }
@@ -1219,13 +1424,133 @@ fun AddToCollectionModal(
                 }
 
                 item {
-                    OutlinedTextField(
-                        value = quantityText,
-                        onValueChange = { quantityText = it },
-                        label = { Text("Quantidade") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    val parsedQty = quantityText.toIntOrNull() ?: 1
+                    val parsedPrice = purchasePriceText.replace(",", ".").toDoubleOrNull() ?: 0.0
+                    val totalEstimated = itemResult.averagePrice * parsedQty
+                    val totalPaid = parsedPrice * parsedQty
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Número de Cópias (Quantidade)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (parsedQty == 4) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primary
+                                    ) {
+                                        Text(
+                                            text = "Playset Completo",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        val current = quantityText.toIntOrNull() ?: 1
+                                        if (current > 1) quantityText = (current - 1).toString()
+                                    },
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Diminuir cópia")
+                                }
+
+                                OutlinedTextField(
+                                    value = quantityText,
+                                    onValueChange = { quantityText = it },
+                                    label = { Text("Cópias") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                )
+
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        val current = quantityText.toIntOrNull() ?: 1
+                                        quantityText = (current + 1).toString()
+                                    },
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Aumentar cópia")
+                                }
+                            }
+
+                            // Quick preset chips for copies (1x, 2x, 3x, 4x Playset, 5x, 10x)
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val presets = listOf(
+                                    1 to "1x (Un.)",
+                                    2 to "2x",
+                                    3 to "3x",
+                                    4 to "4x (Playset)",
+                                    5 to "5x",
+                                    10 to "10x"
+                                )
+                                items(presets) { (count, label) ->
+                                    FilterChip(
+                                        selected = (quantityText.toIntOrNull() == count),
+                                        onClick = { quantityText = count.toString() },
+                                        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                                    )
+                                }
+                            }
+
+                            if (parsedQty > 1) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Valor Total (${parsedQty}x):",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = selectedCurrency.format(totalEstimated),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 item {
@@ -1266,6 +1591,143 @@ fun AddToCollectionModal(
                 onConfirm(qty, price, storageLocation, notes)
             }) {
                 Text("Confirmar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CardEffectEditModal(
+    initialTranslatedEffect: String,
+    initialOracleText: String,
+    initialAttacks: String,
+    initialHp: String,
+    initialArtist: String,
+    subCategory: String,
+    onDismiss: () -> Unit,
+    onConfirm: (translated: String, oracle: String, attacks: String, hp: String, artist: String) -> Unit
+) {
+    var translatedEffect by remember { mutableStateOf(initialTranslatedEffect) }
+    var oracleText by remember { mutableStateOf(initialOracleText) }
+    var attacks by remember { mutableStateOf(initialAttacks) }
+    var hp by remember { mutableStateOf(initialHp) }
+    var artist by remember { mutableStateOf(initialArtist) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Translate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text("Editar Efeitos & Tradução", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    Text(
+                        text = "Personalize ou adicione manualmente o texto em português, regras e atributos da carta.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = translatedEffect,
+                        onValueChange = { translatedEffect = it },
+                        label = { Text("O que a carta faz (Tradução PT-BR)") },
+                        placeholder = { Text("Ex: Quando este card entrar no campo de batalha, compre 2 cards...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4,
+                        supportingText = { Text("Texto que aparecerá como efeito principal em português") }
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = oracleText,
+                        onValueChange = { oracleText = it },
+                        label = { Text("Texto Original em Inglês (Oracle / Regras)") },
+                        placeholder = { Text("Ex: When this card enters the battlefield, draw 2 cards...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3
+                    )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        FilledTonalButton(
+                            onClick = {
+                                if (oracleText.isNotBlank()) {
+                                    translatedEffect = CardEffectTranslator.translateToPortuguese(oracleText, subCategory)
+                                }
+                            },
+                            enabled = oracleText.isNotBlank(),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Traduzir EN➔PT Automaticamente", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = attacks,
+                        onValueChange = { attacks = it },
+                        label = { Text("Ataques / Habilidades Especiais") },
+                        placeholder = { Text("Ex: Choque do Trovão: 50 | Investida: 20") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = hp,
+                            onValueChange = { hp = it },
+                            label = { Text("HP / Pontos") },
+                            placeholder = { Text("Ex: HP 120 ou 4/4") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = artist,
+                            onValueChange = { artist = it },
+                            label = { Text("Ilustrador") },
+                            placeholder = { Text("Ex: Ken Sugimori") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(translatedEffect.trim(), oracleText.trim(), attacks.trim(), hp.trim(), artist.trim())
+                }
+            ) {
+                Text("Salvar Tradução")
             }
         },
         dismissButton = {

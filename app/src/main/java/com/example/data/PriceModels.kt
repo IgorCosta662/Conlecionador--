@@ -12,7 +12,7 @@ enum class AppCurrency(
     val approximateRateToBRL: Double // 1 unit in BRL
 ) {
     BRL("BRL", "R$", "Real Brasileiro", 1.0),
-    USD("USD", "$", "Dólar Americano", 5.45),
+    USD("USD", "US$", "Dólar Americano", 5.45),
     EUR("EUR", "€", "Euro", 5.95),
     GBP("GBP", "£", "Libra Esterlina", 6.95),
     JPY("JPY", "¥", "Iene Japonês", 0.036);
@@ -27,17 +27,36 @@ enum class AppCurrency(
 
     fun format(amountInBrl: Double): String {
         val converted = convertFromBRL(amountInBrl)
+        val absVal = kotlin.math.abs(converted)
+        val sign = if (converted < -0.001) "-" else ""
         return if (this == JPY) {
-            "$symbol ${String.format(java.util.Locale.GERMANY, "%,.0f", converted)}"
+            "$sign$symbol ${String.format(java.util.Locale.GERMANY, "%,.0f", absVal)}"
         } else {
-            "$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", converted)}"
+            "$sign$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", absVal)}"
+        }
+    }
+
+    fun formatSigned(amountInBrl: Double): String {
+        val converted = convertFromBRL(amountInBrl)
+        val absVal = kotlin.math.abs(converted)
+        val sign = if (converted > 0.001) "+" else if (converted < -0.001) "-" else ""
+        return if (this == JPY) {
+            "$sign$symbol ${String.format(java.util.Locale.GERMANY, "%,.0f", absVal)}"
+        } else {
+            "$sign$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", absVal)}"
         }
     }
 
     fun formatValue(amountInBrl: Double): String = format(amountInBrl)
 
     fun formatExact(amount: Double): String {
-        return "$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", amount)}"
+        val absVal = kotlin.math.abs(amount)
+        val sign = if (amount < -0.001) "-" else ""
+        return if (this == JPY) {
+            "$sign$symbol ${String.format(java.util.Locale.GERMANY, "%,.0f", absVal)}"
+        } else {
+            "$sign$symbol ${String.format(java.util.Locale.GERMANY, "%,.2f", absVal)}"
+        }
     }
 }
 

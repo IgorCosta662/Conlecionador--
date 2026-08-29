@@ -353,6 +353,17 @@ object GeminiClient {
                 notes = "Estimativa visual baseada em processamento digital. Não substitui grading profissional físico."
             )
 
+            val resolvedOfficialImageUrl = try {
+                OfficialCardImageHelper.searchOfficialImageOnline(
+                    name = name,
+                    subCategory = subCategory,
+                    collection = collection,
+                    itemNumber = itemNumber
+                ) ?: OfficialCardImageHelper.getOfficialImageUrl(name, subCategory, collection, itemNumber)
+            } catch (_: Exception) {
+                OfficialCardImageHelper.getOfficialImageUrl(name, subCategory, collection, itemNumber)
+            }
+
             return ItemIdentificationResult(
                 name = name,
                 category = category,
@@ -380,6 +391,7 @@ object GeminiClient {
                 isSpecialEdition = variant.contains("Treasure", ignoreCase = true) || rarity.contains("Secret", ignoreCase = true),
                 authenticityRisk = authenticity,
                 authenticityNotes = "Padrão de fonte, espessura e laminação compatíveis com tiragens oficiais.",
+                officialImageUrl = resolvedOfficialImageUrl,
                 confidenceScore = confidence,
                 averagePrice = avgPrice,
                 minPrice = minPrice,
@@ -496,6 +508,7 @@ object GeminiClient {
             isSpecialEdition = variant.contains("Treasure", ignoreCase = true) || rarity.contains("Secret", ignoreCase = true) || rarity.contains("Special", true),
             authenticityRisk = "Baixo risco aparente",
             authenticityNotes = "Padrão de impressão, tipografia e verniz compatíveis com exemplares originais.",
+            officialImageUrl = OfficialCardImageHelper.getOfficialImageUrl(name, subCategory, collection, itemNumber),
             confidenceScore = 95,
             averagePrice = avgPrice,
             minPrice = minPrice,

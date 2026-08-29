@@ -52,6 +52,7 @@ data class ItemIdentificationResult(
     val languageComparisons: List<LanguagePriceComparison> = emptyList(),
 
     // 5. METADATA E CONFIANÇA GERAL
+    val officialImageUrl: String = "",
     val confidenceScore: Int = 90, // 0 - 100
     val marketTrendComment: String = "",
     val lastUpdateDate: String = "Hoje"
