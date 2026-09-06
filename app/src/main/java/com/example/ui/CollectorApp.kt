@@ -36,6 +36,8 @@ object Routes {
     const val PRICE_ALERTS = "price_alerts"
     const val SECURITY_BACKUP = "security_backup"
     const val CATALOG = "catalog"
+    const val DECKS = "decks"
+    const val DECK_BUILDER = "deck_builder"
 
     // Dedicated Category & Stats Hubs
     const val TCG_HUB = "tcg_hub"
@@ -199,6 +201,12 @@ fun CollectorApp(viewModel: CollectorViewModel) {
             }
             composable(Routes.CATALOG) {
                 CatalogScreen(viewModel, navController)
+            }
+            composable(Routes.DECKS) {
+                DecksListScreen(viewModel, navController)
+            }
+            composable(Routes.DECK_BUILDER) {
+                DeckDetailScreen(viewModel, navController)
             }
 
             // Category Specific Pages

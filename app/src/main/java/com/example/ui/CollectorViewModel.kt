@@ -15,6 +15,7 @@ import com.example.api.TcgdexCardBrief
 import com.example.api.TcgdexCardDetail
 import com.example.api.TcgOnlineService
 import com.example.data.*
+import com.example.util.OfficialCardImageHelper
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
@@ -371,11 +372,43 @@ class CollectorViewModel(
     fun startSampleScan(type: String) {
         viewModelScope.launch {
             _scanUiState.value = ScanUiState.Loading
-            val hint = if (type == "CARRINHO") "Hot Wheels Datsun 510 Wagon Super Treasure Hunt" else "Pokémon Charizard ex 151"
+            val hint = when (type.uppercase()) {
+                "CARRINHO", "HOTWHEELS" -> "Hot Wheels Datsun 510 Wagon Super Treasure Hunt"
+                "PIKACHU" -> "Pikachu (Illustration Rare) Scarlet & Violet 151"
+                "BLASTOISE" -> "Blastoise ex Scarlet & Violet 151"
+                "VENUSAUR" -> "Venusaur ex Scarlet & Violet 151"
+                "MEWTWO" -> "Mewtwo Scarlet & Violet 151"
+                "CHARIZARD" -> "Charizard ex Scarlet & Violet 151"
+                "MAGIC", "MTG" -> "The Thing, Ben Grimm"
+                else -> "Pikachu (Illustration Rare) Scarlet & Violet 151"
+            }
             val market = selectedMarketRegion.value
             val result = GeminiClient.generateSimulatedResultForFallback(hint, market)
             identificationCorrectionBuffer.value = result
             _scanUiState.value = ScanUiState.Success(result, null, null)
+        }
+    }
+
+    fun applyCatalogMatchToResult(entry: RealCatalogEntry) {
+        val current = _scanUiState.value
+        val market = selectedMarketRegion.value
+        val simulated = GeminiClient.generateSimulatedResultForFallback(entry.name, market)
+        val updatedResult = simulated.copy(
+            name = entry.name,
+            category = entry.category,
+            subCategory = entry.subCategory,
+            collection = entry.collection,
+            itemNumber = entry.itemNumber,
+            rarity = entry.rarity,
+            variant = entry.variant,
+            averagePrice = entry.realMarketPriceBrl,
+            minPrice = entry.lowPriceBrl,
+            maxPrice = entry.highPriceBrl,
+            officialImageUrl = OfficialCardImageHelper.getOfficialImageUrl(entry.name, entry.subCategory, entry.collection, entry.itemNumber)
+        )
+        identificationCorrectionBuffer.value = updatedResult
+        if (current is ScanUiState.Success) {
+            _scanUiState.value = current.copy(result = updatedResult)
         }
     }
 
@@ -948,6 +981,241 @@ class CollectorViewModel(
             val id = repository.insertItem(newItem)
             onComplete(newItem.copy(id = id.toInt()))
         }
+    }
+
+    // --- DECK BUILDER & CARD CALCULATOR ENGINE ---
+    val allDecksWithCards: StateFlow<List<DeckWithCards>> = repository.allDecksWithCards.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+
+    val activeDeckId = MutableStateFlow<Int?>(null)
+
+    val activeDeckWithCards: StateFlow<DeckWithCards?> = combine(
+        allDecksWithCards,
+        activeDeckId
+    ) { decks, id ->
+        if (id != null) decks.firstOrNull { it.deck.id == id } else null
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        null
+    )
+
+    fun selectDeck(deckId: Int) {
+        activeDeckId.value = deckId
+    }
+
+    fun clearSelectedDeck() {
+        activeDeckId.value = null
+    }
+
+    fun createDeck(
+        name: String,
+        game: String,
+        format: String,
+        commanderOrLeader: String = "",
+        description: String = "",
+        themeColorHex: String = "#3B82F6",
+        onCreated: (Long) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val newDeck = Deck(
+                name = name,
+                game = game,
+                format = format,
+                commanderOrLeader = commanderOrLeader,
+                description = description,
+                themeColorHex = themeColorHex,
+                coverImageUrl = "",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+            val newId = repository.insertDeck(newDeck)
+            activeDeckId.value = newId.toInt()
+            onCreated(newId)
+        }
+    }
+
+    fun createDeckFromTemplate(
+        deckTemplate: Pair<Deck, List<DeckCard>>,
+        onCreated: (Long) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val (templateDeck, templateCards) = deckTemplate
+            val newDeck = templateDeck.copy(
+                id = 0,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+            val newDeckId = repository.insertDeck(newDeck)
+            val cardsWithDeckId = templateCards.map {
+                it.copy(id = 0, deckId = newDeckId.toInt())
+            }
+            repository.insertDeckCards(cardsWithDeckId)
+            activeDeckId.value = newDeckId.toInt()
+            onCreated(newDeckId)
+        }
+    }
+
+    fun updateDeckDetails(
+        deck: Deck,
+        name: String,
+        format: String,
+        commander: String,
+        description: String,
+        themeColor: String
+    ) {
+        viewModelScope.launch {
+            val updated = deck.copy(
+                name = name,
+                format = format,
+                commanderOrLeader = commander,
+                description = description,
+                themeColorHex = themeColor,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateDeck(updated)
+        }
+    }
+
+    fun deleteDeck(deckId: Int) {
+        viewModelScope.launch {
+            repository.deleteDeckById(deckId)
+            if (activeDeckId.value == deckId) {
+                activeDeckId.value = null
+            }
+        }
+    }
+
+    fun addCardToDeck(deckId: Int, card: DeckCard) {
+        viewModelScope.launch {
+            val currentDeck = allDecksWithCards.value.firstOrNull { it.deck.id == deckId }
+            val existingCard = currentDeck?.cards?.firstOrNull {
+                it.name.equals(card.name, ignoreCase = true) &&
+                it.collection.equals(card.collection, ignoreCase = true)
+            }
+
+            if (existingCard != null) {
+                repository.updateDeckCard(existingCard.copy(quantity = existingCard.quantity + card.quantity))
+            } else {
+                repository.insertDeckCard(card.copy(deckId = deckId))
+            }
+
+            // Update deck timestamp
+            currentDeck?.let {
+                repository.updateDeck(it.deck.copy(updatedAt = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun addCardFromCollectionToDeck(deckId: Int, item: Item, quantity: Int = 1) {
+        val guessedType = when {
+            item.subCategory.contains("Magic", true) -> {
+                if (item.tags.contains("Commander", true) || item.notes.contains("Commander", true)) "Comandante"
+                else if (item.tags.contains("Artefato", true) || item.notes.contains("Artefato", true)) "Artefato"
+                else if (item.tags.contains("Terreno", true) || item.name.contains("Planalto", true) || item.name.contains("Montanha", true)) "Terreno"
+                else "Mágica / Criatura"
+            }
+            item.subCategory.contains("Yu-Gi-Oh", true) -> {
+                if (item.cardHp.contains("ATK", true) || item.cardAttacks.isNotBlank()) "Monstro"
+                else "Magia / Armadilha"
+            }
+            item.subCategory.contains("One Piece", true) -> {
+                if (item.name.contains("Leader", true)) "Líder"
+                else "Personagem"
+            }
+            else -> {
+                if (item.name.contains("Ball", true) || item.name.contains("Bola", true) || item.name.contains("Doce", true)) "Treinador"
+                else if (item.name.contains("Energia", true)) "Energia"
+                else "Pokémon"
+            }
+        }
+
+        val deckCard = DeckCard(
+            deckId = deckId,
+            name = item.name,
+            cardType = guessedType,
+            collection = item.collection,
+            itemNumber = item.itemNumber,
+            imageUrl = item.imageUri ?: "",
+            quantity = quantity,
+            estimatedPriceBrl = item.estimatedValue,
+            manaCostOrHp = item.cardHp,
+            rarity = item.rarity,
+            isCommanderOrLeader = item.tags.contains("Commander", true) || guessedType == "Comandante" || guessedType == "Líder",
+            isBasicEnergyOrLand = item.name.contains("Energia Básica", true) || item.name.contains("Basic Land", true)
+        )
+        addCardToDeck(deckId, deckCard)
+    }
+
+    fun addCardFromCatalogToDeck(deckId: Int, entry: RealCatalogEntry, quantity: Int = 1) {
+        val guessedType = when {
+            entry.subCategory.contains("Magic", true) -> {
+                if (entry.name.contains("Thing", true)) "Comandante"
+                else if (entry.name.contains("Ring", true)) "Artefato"
+                else "Mágica / Criatura"
+            }
+            entry.subCategory.contains("Yu-Gi-Oh", true) -> "Monstro"
+            entry.subCategory.contains("One Piece", true) -> "Personagem"
+            else -> "Pokémon"
+        }
+
+        val deckCard = DeckCard(
+            deckId = deckId,
+            name = entry.name,
+            cardType = guessedType,
+            collection = entry.collection,
+            itemNumber = entry.itemNumber,
+            imageUrl = OfficialCardImageHelper.getOfficialImageUrl(entry.name, entry.subCategory, entry.collection, entry.itemNumber),
+            quantity = quantity,
+            estimatedPriceBrl = entry.realMarketPriceBrl,
+            rarity = entry.rarity
+        )
+        addCardToDeck(deckId, deckCard)
+    }
+
+    fun updateDeckCardQuantity(card: DeckCard, newQuantity: Int) {
+        viewModelScope.launch {
+            if (newQuantity <= 0) {
+                repository.deleteDeckCard(card)
+            } else {
+                repository.updateDeckCard(card.copy(quantity = newQuantity))
+            }
+            allDecksWithCards.value.firstOrNull { it.deck.id == card.deckId }?.let {
+                repository.updateDeck(it.deck.copy(updatedAt = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun removeDeckCard(card: DeckCard) {
+        viewModelScope.launch {
+            repository.deleteDeckCard(card)
+            allDecksWithCards.value.firstOrNull { it.deck.id == card.deckId }?.let {
+                repository.updateDeck(it.deck.copy(updatedAt = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun seedStarterDecksIfEmpty() {
+        viewModelScope.launch {
+            // Check if already seeded
+            val current = repository.allDecksWithCards.first()
+            if (current.isEmpty()) {
+                val starterDecks = DeckTemplates.getStarterDecks()
+                for (pair in starterDecks) {
+                    val (deck, cards) = pair
+                    val deckId = repository.insertDeck(deck)
+                    val preparedCards = cards.map { it.copy(deckId = deckId.toInt()) }
+                    repository.insertDeckCards(preparedCards)
+                }
+            }
+        }
+    }
+
+    init {
+        seedStarterDecksIfEmpty()
     }
 }
 

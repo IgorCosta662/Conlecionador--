@@ -501,6 +501,35 @@ fun DashboardScreen(
                         onClick = { navController.navigate(Routes.SECURITY_BACKUP) }
                     )
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Deck Builder & Formatos
+                    QuickActionButton(
+                        icon = Icons.Default.DashboardCustomize,
+                        title = "Decks & Formatos",
+                        subtitle = "Calcular & Montar",
+                        containerColor = Color(0xFFEFF6FF),
+                        contentColor = Color(0xFF2563EB),
+                        modifier = Modifier.weight(1f),
+                        testTag = "btn_decks_hub",
+                        onClick = { navController.navigate(Routes.DECKS) }
+                    )
+
+                    // Catálogo de Mercado
+                    QuickActionButton(
+                        icon = Icons.Default.MenuBook,
+                        title = "Catálogo Oficial",
+                        subtitle = "Preços & Sets",
+                        containerColor = Color(0xFFFDF4FF),
+                        contentColor = Color(0xFFC026D3),
+                        modifier = Modifier.weight(1f),
+                        testTag = "btn_catalog_hub",
+                        onClick = { navController.navigate(Routes.CATALOG) }
+                    )
+                }
             }
         }
 

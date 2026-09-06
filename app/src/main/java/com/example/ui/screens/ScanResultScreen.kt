@@ -68,6 +68,7 @@ fun ScanResultScreen(
     // Official Web Card Image toggle - Defaults to true for crystal clear scans from official sites
     var preferOfficialImage by remember { mutableStateOf(true) }
     var showPrintSelectorModal by remember { mutableStateOf(false) }
+    var showCatalogSelectorModal by remember { mutableStateOf(false) }
     var isSearchingWebImage by remember { mutableStateOf(false) }
     var isTranslatingEffect by remember { mutableStateOf(false) }
     var showEditEffectDialog by remember { mutableStateOf(false) }
@@ -595,6 +596,22 @@ fun ScanResultScreen(
                                     onClick = {},
                                     label = { Text(itemResult.languageDisplayName, fontSize = 11.sp) }
                                 )
+                            }
+
+                            // Quick Correction / Direct Catalog Switcher
+                            OutlinedButton(
+                                onClick = { showCatalogSelectorModal = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Não é esta carta? Trocar no Catálogo", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1197,6 +1214,26 @@ fun ScanResultScreen(
             }
         )
     }
+
+    // Modal para Selecionar Carta / Item Correto do Catálogo Completo
+    if (showCatalogSelectorModal) {
+        CatalogItemSelectorModal(
+            currentCategory = itemResult.category,
+            currentSubCategory = itemResult.subCategory,
+            onDismiss = { showCatalogSelectorModal = false },
+            onSelectEntry = { selectedEntry ->
+                viewModel.applyCatalogMatchToResult(selectedEntry)
+                preferOfficialImage = true
+                customOfficialImageUrl = OfficialCardImageHelper.getOfficialImageUrl(
+                    selectedEntry.name,
+                    selectedEntry.subCategory,
+                    selectedEntry.collection,
+                    selectedEntry.itemNumber
+                )
+                showCatalogSelectorModal = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -1733,6 +1770,237 @@ fun CardEffectEditModal(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancelar")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CatalogItemSelectorModal(
+    currentCategory: String,
+    currentSubCategory: String,
+    onDismiss: () -> Unit,
+    onSelectEntry: (RealCatalogEntry) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember {
+        mutableStateOf(
+            if (currentSubCategory.contains("Pokémon", ignoreCase = true) || currentCategory.contains("Pokémon", ignoreCase = true)) {
+                "Pokémon TCG"
+            } else if (currentSubCategory.contains("Magic", ignoreCase = true)) {
+                "Magic MTG"
+            } else if (currentSubCategory.contains("Hot Wheels", ignoreCase = true) || currentCategory.contains("Diecast", ignoreCase = true)) {
+                "Hot Wheels"
+            } else {
+                "Todos"
+            }
+        )
+    }
+
+    val filteredEntries = remember(searchQuery, selectedFilter) {
+        val query = searchQuery.trim().lowercase()
+        RealMarketCatalog.allEntries.filter { entry ->
+            val matchesCategory = when (selectedFilter) {
+                "Pokémon TCG" -> entry.subCategory.contains("Pokémon", ignoreCase = true) || entry.category.contains("Pokémon", ignoreCase = true)
+                "Magic MTG" -> entry.subCategory.contains("Magic", ignoreCase = true) || entry.category.contains("Magic", ignoreCase = true)
+                "Hot Wheels" -> entry.subCategory.contains("Hot Wheels", ignoreCase = true) || entry.category.contains("Diecast", ignoreCase = true)
+                "Yu-Gi-Oh!" -> entry.subCategory.contains("Yu-Gi-Oh", ignoreCase = true)
+                "One Piece" -> entry.subCategory.contains("One Piece", ignoreCase = true)
+                else -> true
+            }
+
+            val matchesQuery = query.isBlank() ||
+                entry.name.lowercase().contains(query) ||
+                entry.collection.lowercase().contains(query) ||
+                entry.itemNumber.lowercase().contains(query) ||
+                entry.subCategory.lowercase().contains(query)
+
+            matchesCategory && matchesQuery
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Selecionar do Catálogo", fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Fechar")
+                    }
+                }
+                Text(
+                    text = "Escolha o Pokémon ou carta correta da lista verificada",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 350.dp, max = 500.dp)
+            ) {
+                // Search bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Buscar por nome (ex: Pikachu, Blastoise)...", fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpar", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Franchise filter tabs
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val filterTabs = listOf("Todos", "Pokémon TCG", "Magic MTG", "Hot Wheels", "Yu-Gi-Oh!", "One Piece")
+                    items(filterTabs) { tab ->
+                        FilterChip(
+                            selected = selectedFilter == tab,
+                            onClick = { selectedFilter = tab },
+                            label = { Text(tab, fontSize = 11.sp, fontWeight = if (selectedFilter == tab) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Results list
+                if (filteredEntries.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Nenhum item encontrado para '$searchQuery'",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredEntries) { entry ->
+                            Card(
+                                onClick = { onSelectEntry(entry) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    val entryImgUrl = remember(entry.name) {
+                                        OfficialCardImageHelper.getOfficialImageUrl(entry.name, entry.subCategory, entry.collection, entry.itemNumber)
+                                    }
+
+                                    if (entryImgUrl.isNotBlank()) {
+                                        AsyncImage(
+                                            model = entryImgUrl,
+                                            contentDescription = entry.name,
+                                            modifier = Modifier
+                                                .size(54.dp, 75.dp)
+                                                .clip(RoundedCornerShape(6.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(54.dp, 75.dp)
+                                                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(6.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.Style, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = entry.name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 2
+                                        )
+                                        Text(
+                                            text = "${entry.subCategory} • ${entry.collection} (${entry.itemNumber})",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 11.sp,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.primaryContainer
+                                            ) {
+                                                Text(
+                                                    text = entry.rarity,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                            Text(
+                                                text = "R$ ${"%.2f".format(entry.realMarketPriceBrl)}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color(0xFF2E7D32)
+                                            )
+                                        }
+                                    }
+
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Selecionar",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar")
             }
         }
     )

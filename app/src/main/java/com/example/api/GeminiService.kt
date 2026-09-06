@@ -111,43 +111,38 @@ object GeminiClient {
         }
 
         val systemPrompt = """
-            Você é o mais avançado scanner de IA especializado em identificação, autenticação e precificação de colecionáveis no mundo.
-            Categorias suportadas com precisão pericial:
+            Você é o mais avançado scanner de IA especializado em identificação pericial, autenticação e precificação de colecionáveis no mundo.
+            Categorias suportadas:
             - Trading Cards: Pokémon TCG, Magic: The Gathering, Yu-Gi-Oh!, One Piece Card Game, Digimon, Lorcana, Star Wars, Esportes.
             - Carrinhos & Diecast: Hot Wheels (Mainline, Treasure Hunt, Super Treasure Hunt, RLC, Redline), Matchbox, Tomica, Majorette, Maisto.
             - Action Figures, Moedas e outros colecionáveis.
 
-            INSTRUÇÕES CRÍTICAS DE PRECISÃO & VALORES 100% REAIS DE MERCADO:
-            1. IDENTIFICAÇÃO E ATRIBUTOS:
-               - Identifique nome exato, coleção/set, número de colecionador (#xxx/xxx), raridade, variante (Foil, Non-Foil, Reverse Holo, Alternate Art, Secret Rare, Special Illustration Rare, STH, TH, etc.).
-               - Para cards, extraia HP, ataques e ilustrador/artista se visível.
-            2. DETECÇÃO DE IDIOMA OBRIGATÓRIA:
-               - Analise o texto da carta e identifique o idioma exato: PT-BR (Português), EN (Inglês), JP (Japonês), ZH (Chinês), KO (Coreano), FR (Francês), DE (Alemão), ES (Espanhol), IT (Italiano) ou N/A.
-            3. AVALIAÇÃO DE CONDIÇÃO VISUAL (ESTIMATIVA):
+            INSTRUÇÕES CRÍTICAS DE IDENTIFICAÇÃO E FIDELIDADE:
+            1. IDENTIFICAÇÃO RIGOROSA DO PERSONAGEM/CARD (REGRA DE OURO):
+               - NUNCA assuma que uma carta Pokémon é 'Charizard' a não ser que o nome 'Charizard' esteja CLARAMENTE escrito no topo da carta.
+               - Leia atentamente o NOME EXATO impresso no topo do card (ex: Pikachu, Bulbasaur, Charmander, Squirtle, Blastoise, Venusaur, Mew, Mewtwo, Gengar, Eevee, Umbreon, Espeon, Lugia, Rayquaza, Giratina, Greninja, Gardevoir, Mimikyu, Snorlax, Dragonite, Lucario, Gyarados, Alakazam, Zapdos, Articuno, Moltres, Raichu, etc.).
+               - Para Magic: The Gathering, leia o nome no topo em inglês ou português (ex: The Thing, Ben Grimm, Sol Ring, The One Ring, Sheoldred, Lightning Bolt, Counterspell, etc.).
+               - Para Yu-Gi-Oh!, One Piece ou Hot Wheels, identifique o modelo/personagem exato visível.
+            2. NÚMERO DE COLECIONADOR & COLEÇÃO:
+               - Procure o número no canto inferior (#xxx/xxx) e o símbolo ou código da coleção (ex: 173/165, 199/165, 025/165, 200/165, 198/165, 215/203, etc.).
+            3. DETECÇÃO DE IDIOMA OBRIGATÓRIA:
+               - Analise o texto do card: PT-BR (Português), EN (Inglês), JP (Japonês), ZH (Chinês), KO (Coreano), FR (Francês), DE (Alemão), ES (Espanhol), IT (Italiano) ou N/A.
+            4. ATRIBUTOS ESPECÍFICOS DE JOGO:
+               - Extraia HP exato (ex: HP 60, HP 120, HP 330), nomes dos ataques reais e ilustrador/artista se legível.
+            5. AVALIAÇÃO DE CONDIÇÃO VISUAL:
                - Estime a condição: 'Mint', 'Near Mint', 'Excellent', 'Good', 'Played', 'Poor'.
-            4. REGRAS DE PRECIFICAÇÃO REAL (FIDELIDADE RIGOROSA À LIGAMAGIC E LIGAPOKÉMON):
-               - NUNCA superestime cartas comuns ou incomuns! A imensa maioria das cartas comuns/incomuns custa centavos ou poucos reais:
-                 * Magic Comum: Menor R$ 0,20 | Médio R$ 0,80 | Maior R$ 2,00
-                 * Magic Incomum (ex: The Thing, Ben Grimm - SCMSH): Menor R$ 0,90 | Médio R$ 2,68 | Maior R$ 5,00 (Foil: R$ 1,40 a R$ 4,20)
-                 * Magic Rara Regular: Menor R$ 1,50 | Médio R$ 4,00 a R$ 15,00
-                 * Magic Mítica: R$ 15,00 a R$ 80,00+ (salvo staples cobiçadas)
-                 * Pokémon Comum: R$ 0,20 - R$ 1,50
-                 * Pokémon Incomum: R$ 0,50 - R$ 3,50
-                 * Pokémon Rara Regular / Holo: R$ 2,00 - R$ 8,00
-                 * Pokémon ex / V regular: R$ 8,00 - R$ 25,00
-                 * Pokémon Special Illustration Rare (SIR): R$ 150 - R$ 900+
-                 * Diecast Mainline regular: R$ 15,00 - R$ 19,99; Super Treasure Hunt: R$ 180 - R$ 450.
-                 * Moedas comuns de circulação: R$ 1,00 - R$ 5,00; Comemorativas: R$ 15 - R$ 80; DH 1998 FC: R$ 300 - R$ 450.
-            5. ANÁLISE DE AUTENTICIDADE:
-               - Classifique o risco de autenticidade: 'Baixo risco aparente', 'Necessita análise' ou 'Possíveis sinais de inconformidade'.
+            6. REGRAS DE PRECIFICAÇÃO REAL (FIDELIDADE À LIGAPOKÉMON E LIGAMAGIC):
+               - NUNCA superestime cartas comuns ou incomuns. Use valores de mercado realistas para o Brasil/EUA.
+            7. ANÁLISE DE AUTENTICIDADE:
+               - Classifique: 'Baixo risco aparente', 'Necessita análise' ou 'Possíveis sinais de inconformidade'.
 
             FORMATO DE RETORNO OBRIGATÓRIO (Linha única separada por pipes '|'):
             NOME|CATEGORIA|SUBCATEGORIA|COLECAO|NUMERO|EDICAO|IDIOMA|RARIDADE|VARIANTE|CONDICAO|COND_PCT|ANO|COR|ESCALA|CARD_HP|CARD_ARTIST|CARD_ATTACKS|AUTENTICIDADE|CONFIANCA_PCT|PRECO_MEDIO|PRECO_MIN|PRECO_MAX|COMENTARIO_MERCADO|TEXTO_ORIGINAL_REGRAS|TRADUCAO_PORTUGUES_EFEITOS
 
-            Exemplo:
-            The Thing, Ben Grimm|Trading Cards|Magic: The Gathering|Marvel Super Heroes Scene|004/006|Edição Regular|EN|Incomum|Non-Foil|Near Mint|90|2024||N/A||Greg Staples||Baixo risco aparente|95|2.68|0.90|5.00|Carta de cena promocional Marvel. Cotação alinhada com marketplace da LigaMagic.|Whenever The Thing attacks, it gains indestructible until end of turn.|Toda vez que The Thing ataca, ele ganha indestrutível até o final do turno.
+            Exemplo 1 (Pokémon):
+            Pikachu|Trading Cards|Pokémon TCG|Scarlet & Violet 151|173/165|Edição Regular|PT-BR|Illustration Rare|Foil|Near Mint|92|2023||N/A|HP 60|Hiroyuki Yamamoto|Charge (10), Thunderbolt (60)|Baixo risco aparente|95|85.00|60.00|120.00|Arte especial Illustration Rare de Pikachu na coleção 151. Alta procura no mercado nacional.|Charge: Search your deck for an Energy card and attach it to this Pokémon. Thunderbolt: Discard all Energy attached to this Pokémon.|Carga: Procure em seu baralho por 1 card de Energia e ligue-o a este Pokémon. Choque do Trovão: Descarte todas as Energias ligadas a este Pokémon.
 
-            Não retorne markdown ou blocos de código. Apenas a linha com pipes.
+            Não retorne blocos markdown. Apenas a linha com pipes.
         """.trimIndent()
 
         val prompt = if (!contextHint.isNullOrBlank()) {
@@ -410,35 +405,80 @@ object GeminiClient {
 
     fun generateSimulatedResultForFallback(hint: String?, targetMarket: MarketRegion = MarketRegion.BRAZIL): ItemIdentificationResult {
         val matchedEntry = if (!hint.isNullOrBlank()) {
-            val lowerHint = hint.lowercase()
+            val lowerHint = hint.lowercase().trim()
             when {
-                lowerHint.contains("magic") || lowerHint.contains("mtg") || lowerHint.contains("ring") || lowerHint.contains("sheoldred") || lowerHint.contains("lotus") || lowerHint.contains("commander") -> {
-                    RealMarketCatalog.allEntries.firstOrNull { it.subCategory == "Magic: The Gathering" && (lowerHint.contains("ring") && it.name.contains("Ring", true) || !lowerHint.contains("ring")) }
+                // Specific Pokemon card hints
+                lowerHint.contains("pikachu") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Pikachu", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("bulbasaur") || lowerHint.contains("bulbassauro") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Bulbasaur", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("charmander") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Charmander", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("squirtle") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Squirtle", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("blastoise") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Blastoise", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("venusaur") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Venusaur", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("mewtwo") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Mewtwo", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("mew") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Mew", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("gengar") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Gengar", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("eevee") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Eevee", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("umbreon") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Umbreon", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("lugia") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Lugia", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("rayquaza") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Rayquaza", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("giratina") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Giratina", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("greninja") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Greninja", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("gardevoir") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Gardevoir", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("mimikyu") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Mimikyu", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("gyarados") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Gyarados", true) } ?: RealMarketCatalog.allEntries[1]
+                lowerHint.contains("charizard") -> RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Charizard", true) } ?: RealMarketCatalog.allEntries[0]
+
+                // Generic Pokémon Focus / Category
+                lowerHint.contains("pokémon") || lowerHint.contains("pokemon") -> {
+                    // Match any specific token or default to Pikachu 151
+                    RealMarketCatalog.findBestMatch(hint)
+                        ?: RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Pikachu", true) }
+                        ?: RealMarketCatalog.allEntries.firstOrNull { it.subCategory == "Pokémon TCG" }
+                        ?: RealMarketCatalog.allEntries.first()
+                }
+
+                // Magic: The Gathering
+                lowerHint.contains("magic") || lowerHint.contains("mtg") || lowerHint.contains("ring") || lowerHint.contains("sheoldred") || lowerHint.contains("lotus") || lowerHint.contains("commander") || lowerHint.contains("thing") -> {
+                    RealMarketCatalog.findBestMatch(hint)
                         ?: RealMarketCatalog.allEntries.firstOrNull { it.subCategory == "Magic: The Gathering" }
                         ?: RealMarketCatalog.allEntries.first()
                 }
+
+                // Hot Wheels / Diecast
                 lowerHint.contains("hot wheels") || lowerHint.contains("diecast") || lowerHint.contains("carrinho") || lowerHint.contains("datsun") || lowerHint.contains("skyline") || lowerHint.contains("treasure") -> {
-                    RealMarketCatalog.allEntries.firstOrNull { it.category == "Carrinhos / Diecast" }
+                    RealMarketCatalog.findBestMatch(hint)
+                        ?: RealMarketCatalog.allEntries.firstOrNull { it.category == "Carrinhos / Diecast" }
                         ?: RealMarketCatalog.allEntries.first()
                 }
+
+                // Yu-Gi-Oh!
                 lowerHint.contains("yugioh") || lowerHint.contains("yu-gi-oh") || lowerHint.contains("dragao") || lowerHint.contains("mago") -> {
                     RealMarketCatalog.allEntries.firstOrNull { it.subCategory.contains("Yu-Gi-Oh", true) }
                         ?: RealMarketCatalog.allEntries.first()
                 }
+
+                // One Piece
                 lowerHint.contains("one piece") || lowerHint.contains("luffy") || lowerHint.contains("nami") || lowerHint.contains("zoro") -> {
                     RealMarketCatalog.allEntries.firstOrNull { it.subCategory.contains("One Piece", true) }
                         ?: RealMarketCatalog.allEntries.first()
                 }
+
+                // Moedas
                 lowerHint.contains("moeda") || lowerHint.contains("numismatica") || lowerHint.contains("real") -> {
                     RealMarketCatalog.allEntries.firstOrNull { it.category == "Moedas" }
                         ?: RealMarketCatalog.allEntries.first()
                 }
+
                 else -> {
-                    RealMarketCatalog.findBestMatch(hint) ?: RealMarketCatalog.allEntries.first()
+                    RealMarketCatalog.findBestMatch(hint)
+                        ?: RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Pikachu", true) }
+                        ?: RealMarketCatalog.allEntries.first()
                 }
             }
         } else {
-            RealMarketCatalog.allEntries.first()
+            // Default when no hint is supplied: Pikachu (Illustration Rare)
+            RealMarketCatalog.allEntries.firstOrNull { it.name.contains("Pikachu", true) }
+                ?: RealMarketCatalog.allEntries.first()
         }
 
         val name = matchedEntry.name
@@ -472,6 +512,64 @@ object GeminiClient {
             emptyList()
         }
 
+        // Dynamically build card HP, attacks and oracle text based on actual Pokémon/card name
+        val dynamicCardHp = when {
+            name.contains("Charizard", true) -> "HP 330"
+            name.contains("Pikachu", true) -> "HP 60"
+            name.contains("Blastoise", true) -> "HP 330"
+            name.contains("Venusaur", true) -> "HP 340"
+            name.contains("Mewtwo", true) -> "HP 130"
+            name.contains("Mew", true) -> "HP 180"
+            name.contains("Gengar", true) -> "HP 130"
+            name.contains("Eevee", true) -> "HP 70"
+            name.contains("Umbreon", true) -> "HP 310"
+            name.contains("Lugia", true) -> "HP 220"
+            name.contains("Rayquaza", true) -> "HP 320"
+            name.contains("Bulbasaur", true) || name.contains("Charmander", true) || name.contains("Squirtle", true) -> "HP 60"
+            subCategory.contains("Pokémon", true) && name.contains("ex", true) -> "HP 250"
+            subCategory.contains("Pokémon", true) -> "HP 90"
+            else -> ""
+        }
+
+        val dynamicArtist = when {
+            name.contains("Pikachu", true) -> "Hiroyuki Yamamoto"
+            name.contains("Charizard", true) -> "AKIRA EGAWA"
+            name.contains("Blastoise", true) -> "Mitsuhiro Arita"
+            name.contains("Venusaur", true) -> "Yuu Nishida"
+            name.contains("Mew", true) -> "USGMEN"
+            name.contains("The Thing", true) -> "Greg Staples"
+            name.contains("One Ring", true) -> "Stephen Martiniere"
+            else -> "Ilustrador Oficial"
+        }
+
+        val dynamicAttacks = when {
+            name.contains("Pikachu", true) -> "Charge (10), Thunderbolt (60)"
+            name.contains("Charizard", true) -> "Brave Wing (60+), Explosive Vortex (330)"
+            name.contains("Blastoise", true) -> "Twin Cannons (140x), Torrential Cannon"
+            name.contains("Venusaur", true) -> "Tranquil Flower, Giant Bloom (150)"
+            name.contains("Mewtwo", true) -> "Psyburn (130), Psystrike"
+            name.contains("Mew", true) -> "Restart, Genome Hacking"
+            name.contains("Gengar", true) -> "Poltergeist (60x), Shadow Ball"
+            name.contains("Bulbasaur", true) -> "Leech Seed (20), Vine Whip"
+            name.contains("Charmander", true) -> "Scratch (10), Ember (30)"
+            name.contains("Squirtle", true) -> "Withdraw, Water Gun (20)"
+            else -> if (subCategory.contains("Pokémon", true)) "Ataque Rápido (30), Impacto Especial" else ""
+        }
+
+        val dynamicOracleText = when {
+            name.contains("Pikachu", true) -> "Charge: Search your deck for an Energy card and attach it to this Pokémon.\nThunderbolt: Discard all Energy attached to this Pokémon."
+            name.contains("Charizard", true) -> "Brave Wing: 60+ damage. This attack does 60 more damage for each damage counter on this Pokémon.\nExplosive Vortex: 330 damage. Discard 3 Energy from this Pokémon."
+            name.contains("The Thing", true) -> "Whenever The Thing attacks, it gains indestructible until end of turn."
+            else -> matchedEntry.notes
+        }
+
+        val dynamicTranslatedEffect = when {
+            name.contains("Pikachu", true) -> "Carga: Procure em seu baralho por 1 card de Energia e ligue-o a este Pokémon.\nChoque do Trovão: Descarte todas as Energias ligadas a este Pokémon."
+            name.contains("Charizard", true) -> "Asa Valente: 60+ de dano. Este ataque causa 60 pontos de dano a mais para cada contador de dano neste Pokémon.\nVórtice Explosivo: 330 de dano. Descarte 3 Energias deste Pokémon."
+            name.contains("The Thing", true) -> "Toda vez que The Thing ataca, ele ganha indestrutível até o final do turno."
+            else -> CardEffectTranslator.translateToPortuguese(dynamicOracleText, subCategory)
+        }
+
         return ItemIdentificationResult(
             name = name,
             category = category,
@@ -483,11 +581,11 @@ object GeminiClient {
             rarity = rarity,
             variant = variant,
             isFoil = variant.contains("Foil", ignoreCase = true) || variant.contains("Holo", ignoreCase = true),
-            cardHp = if (name.contains("Charizard", true)) "HP 330" else if (name.contains("Pikachu", true)) "HP 60" else "",
-            cardArtist = if (name.contains("Charizard", true)) "AKIRA EGAWA" else "",
-            cardAttacks = if (name.contains("Charizard", true)) "Brave Wing (60+), Explosive Vortex (330)" else if (name.contains("Pikachu", true)) "Charge (10), Thunderbolt (60)" else "",
-            cardOracleText = if (name.contains("Charizard", true)) "Brave Wing: 60+ damage. This attack does 60 more damage for each damage counter on this Pokémon.\nExplosive Vortex: 330 damage. Discard 3 Energy from this Pokémon." else if (name.contains("Pikachu", true)) "Charge: Search your deck for an Energy card and attach it to this Pokémon.\nThunderbolt: Discard all Energy attached to this Pokémon." else "",
-            cardTranslatedEffect = if (name.contains("Charizard", true)) "Asa Valente: 60+ de dano. Este ataque causa 60 pontos de dano a mais para cada contador de dano neste Pokémon.\nVórtice Explosivo: 330 de dano. Descarte 3 Energias deste Pokémon." else if (name.contains("Pikachu", true)) "Carga: Procure em seu baralho por 1 card de Energia e ligue-o a este Pokémon.\nChoque do Trovão: Descarte todas as Energias ligadas a este Pokémon." else "",
+            cardHp = dynamicCardHp,
+            cardArtist = dynamicArtist,
+            cardAttacks = dynamicAttacks,
+            cardOracleText = dynamicOracleText,
+            cardTranslatedEffect = dynamicTranslatedEffect,
             cardSetSymbol = if (collection.isNotBlank()) "◆" else "",
             apparentCondition = condition,
             conditionConfidenceScore = 92,
@@ -502,7 +600,7 @@ object GeminiClient {
                 notes = "Avaliação física e visual compatível com Near Mint / Mint."
             ),
             conditionPrices = conditionTiers,
-            modelYear = "2024",
+            modelYear = matchedEntry.effectiveYear,
             modelColor = "",
             scale = if (category == "Carrinhos / Diecast") "1:64" else "N/A",
             isSpecialEdition = variant.contains("Treasure", ignoreCase = true) || rarity.contains("Secret", ignoreCase = true) || rarity.contains("Special", true),

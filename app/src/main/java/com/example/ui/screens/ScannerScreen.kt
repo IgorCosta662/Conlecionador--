@@ -208,8 +208,8 @@ fun ScannerScreen(
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 val options = listOf(
                                     "" to "Auto (IA)",
+                                    "Pokémon TCG" to "Pokémon TCG",
                                     "Magic: The Gathering MTG" to "Magic MTG",
-                                    "Pokémon TCG" to "Pokémon",
                                     "Yu-Gi-Oh!" to "Yu-Gi-Oh!",
                                     "One Piece Card Game" to "One Piece",
                                     "Hot Wheels Diecast" to "Hot Wheels"
@@ -222,6 +222,36 @@ fun ScannerScreen(
                                         },
                                         label = { Text(label, fontSize = 11.sp, fontWeight = if (contextHintText == hintKey) FontWeight.Bold else FontWeight.Normal) }
                                     )
+                                }
+                            }
+                        }
+
+                        // Secondary Quick Pokemon Chips (Shown when Pokemon TCG is active)
+                        AnimatedVisibility(visible = contextHintText.contains("Pokémon", ignoreCase = true)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Pokémon:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(end = 6.dp)
+                                )
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    val pokeNames = listOf("Pikachu", "Bulbasaur", "Charmander", "Squirtle", "Blastoise", "Venusaur", "Mewtwo", "Gengar", "Umbreon", "Charizard")
+                                    items(pokeNames) { pName ->
+                                        SuggestionChip(
+                                            onClick = {
+                                                contextHintText = "Pokémon TCG $pName"
+                                            },
+                                            label = { Text(pName, fontSize = 10.sp) },
+                                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                                containerColor = if (contextHintText.contains(pName, ignoreCase = true)) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }

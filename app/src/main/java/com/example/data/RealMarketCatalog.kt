@@ -1256,12 +1256,35 @@ object RealMarketCatalog {
         val cleanName = name.trim().lowercase()
         if (cleanName.isBlank()) return null
 
-        return allEntries.firstOrNull { entry ->
-            val matchName = entry.name.lowercase().contains(cleanName) || cleanName.contains(entry.name.lowercase())
-            val matchNumber = number.isNotBlank() && entry.itemNumber.contains(number, ignoreCase = true)
-            val matchSet = set.isNotBlank() && entry.collection.contains(set, ignoreCase = true)
-
-            matchName || (matchNumber && matchSet)
+        // 1. Direct or reciprocal match
+        val directMatch = allEntries.firstOrNull { entry ->
+            val entryLower = entry.name.lowercase()
+            entryLower == cleanName ||
+            (cleanName.length > 3 && entryLower.contains(cleanName)) ||
+            (entryLower.length > 3 && cleanName.contains(entryLower))
         }
+        if (directMatch != null) return directMatch
+
+        // 2. Number + Set match
+        if (number.isNotBlank()) {
+            val numMatch = allEntries.firstOrNull { entry ->
+                entry.itemNumber.contains(number, ignoreCase = true) &&
+                (set.isBlank() || entry.collection.contains(set, ignoreCase = true) || entry.setCode.equals(set, ignoreCase = true))
+            }
+            if (numMatch != null) return numMatch
+        }
+
+        // 3. Extract individual words / tokens (e.g. "pikachu", "bulbasaur", "squirtle", "gengar", "mewtwo", "173/165")
+        val tokens = cleanName.split(Regex("[\\s,/#\\-_]+")).filter { it.length >= 3 }
+        for (token in tokens) {
+            val tokenMatch = allEntries.firstOrNull { entry ->
+                entry.name.lowercase().contains(token) ||
+                entry.itemNumber.lowercase().contains(token) ||
+                entry.tags.lowercase().contains(token)
+            }
+            if (tokenMatch != null) return tokenMatch
+        }
+
+        return null
     }
 }

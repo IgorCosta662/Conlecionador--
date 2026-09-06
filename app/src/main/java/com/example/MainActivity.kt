@@ -14,7 +14,7 @@ import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
     private val database by lazy { AppDatabase.getDatabase(this) }
-    private val repository by lazy { ItemRepository(database.itemDao(), database.wishlistDao()) }
+    private val repository by lazy { ItemRepository(database.itemDao(), database.wishlistDao(), database.deckDao()) }
 
     private val viewModel: CollectorViewModel by viewModels {
         CollectorViewModelFactory(application, repository)
